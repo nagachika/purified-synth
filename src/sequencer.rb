@@ -105,7 +105,7 @@ class Sequencer
   attr_accessor :root_freq
   attr_accessor :swing_amount # 0.0 to 1.0 (0 = straight, >0 = swing)
 
-  attr_reader :is_playing, :current_step, :tracks, :current_track_index, :total_steps
+  attr_reader :is_playing, :current_step, :tracks, :current_track_index, :total_steps, :start_step
   attr_reader :patterns, :name
   attr_reader :effects_chain
 
@@ -152,6 +152,7 @@ class Sequencer
 
     @is_playing = false
     @current_step = 0
+    @start_step = 0
     @next_note_time = 0.0
     @schedule_ahead_time = 0.1
     @lookahead_ms = 25.0
@@ -163,6 +164,16 @@ class Sequencer
 
   def set_total_bars(bars)
     @total_steps = bars.to_i * 32
+    @start_step = @total_steps - 1 if @start_step >= @total_steps
+    @start_step = 0 if @start_step < 0
+  end
+
+  def set_start_step(step)
+    s = step.to_i
+    max = @total_steps - 1
+    s = 0 if s < 0
+    s = max if s > max
+    @start_step = s
   end
 
   def set_bpm(bpm)
@@ -527,7 +538,7 @@ class Sequencer
   def start
     return if @is_playing
     @is_playing = true
-    @current_step = 0
+    @current_step = @start_step
     @next_note_time = @ctx[:currentTime].to_f + 0.1
 
     # Use unique interval name based on instance name

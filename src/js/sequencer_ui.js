@@ -134,6 +134,30 @@ export function setupSequencer(App) {
         return;
     }
 
+    // Sync global controls with Ruby state (e.g. after project load)
+    try {
+        const bars = Math.max(1, Math.floor(totalSteps / 32));
+        if (measuresInput && parseInt(measuresInput.value) !== bars) {
+            measuresInput.value = bars;
+            if (measuresDisplay) measuresDisplay.textContent = bars;
+        }
+        const bpmVal = parseInt(App.call("$sequencer", "bpm").toString());
+        if (bpmInput && parseInt(bpmInput.value) !== bpmVal) {
+            bpmInput.value = bpmVal;
+            if (bpmDisplay) bpmDisplay.textContent = bpmVal;
+        }
+        const swingVal = parseFloat(App.call("$sequencer", "swing_amount").toString());
+        if (swingInput && parseFloat(swingInput.value) !== swingVal) {
+            swingInput.value = swingVal;
+            const sd = document.getElementById("val_swing");
+            if (sd) sd.textContent = Math.round(swingVal * 100);
+        }
+        const rootVal = parseFloat(App.call("$sequencer", "root_freq").toString());
+        if (rootFreqInput && parseFloat(rootFreqInput.value) !== rootVal) {
+            rootFreqInput.value = rootVal;
+        }
+    } catch(e) { /* ignore sync errors */ }
+
     // Ensure master scroll container exists
     let scrollContainer = document.getElementById("master-scroll-container");
     if (!scrollContainer) {
@@ -163,6 +187,113 @@ export function setupSequencer(App) {
         scrollContainer.appendChild(scrollSpacer);
     }
     scrollSpacer.style.width = `${totalSteps * CELL_WIDTH}px`;
+
+    // --- Start position marker row ---
+    let markerRow = document.getElementById("seq-start-marker-row");
+    let markerGrid, marker;
+    if (!markerRow) {
+        markerRow = document.createElement("div");
+        markerRow.id = "seq-start-marker-row";
+        markerRow.style.display = "flex";
+        markerRow.style.gap = "0";
+        markerRow.style.alignItems = "stretch";
+        markerRow.style.marginBottom = "4px";
+        markerRow.style.height = "14px";
+        markerRow.style.flexShrink = "0";
+
+        const mLeft = document.createElement("div");
+        mLeft.style.width = "180px";
+        mLeft.style.flexShrink = "0";
+        mLeft.style.marginRight = "10px";
+        mLeft.style.fontSize = "0.75rem";
+        mLeft.style.color = "#888";
+        mLeft.style.display = "flex";
+        mLeft.style.alignItems = "center";
+        mLeft.style.justifyContent = "flex-end";
+        mLeft.style.paddingRight = "10px";
+        mLeft.textContent = "Start";
+        markerRow.appendChild(mLeft);
+
+        const mWrapper = document.createElement("div");
+        mWrapper.className = "timeline-wrapper";
+        mWrapper.style.flexGrow = "1";
+        mWrapper.style.overflowX = "hidden";
+        mWrapper.style.overflowY = "hidden";
+        mWrapper.style.position = "relative";
+        mWrapper.style.background = "#1a1a1a";
+
+        markerGrid = document.createElement("div");
+        markerGrid.id = "seq-start-marker-grid";
+        markerGrid.style.height = "100%";
+        markerGrid.style.position = "relative";
+        markerGrid.style.cursor = "pointer";
+
+        marker = document.createElement("div");
+        marker.id = "seq-start-marker";
+        marker.style.position = "absolute";
+        marker.style.top = "0";
+        marker.style.left = "0";
+        marker.style.width = "14px";
+        marker.style.height = "14px";
+        marker.style.background = "#ffd43b";
+        marker.style.clipPath = "polygon(0 0, 100% 0, 50% 100%)";
+        marker.style.cursor = "ew-resize";
+        marker.style.transform = `translateX(-7px)`;
+        marker.dataset.step = "0";
+        marker.title = "Drag to set playback start position";
+
+        markerGrid.appendChild(marker);
+        mWrapper.appendChild(markerGrid);
+        markerRow.appendChild(mWrapper);
+        rowsContainer.insertBefore(markerRow, rowsContainer.firstChild);
+
+        const getTotalSteps = () => parseInt(markerGrid.dataset.totalSteps) || 128;
+        const setMarkerStep = (step) => {
+            const ts = getTotalSteps();
+            const clamped = Math.max(0, Math.min(ts - 1, step));
+            marker.style.transform = `translateX(${clamped * CELL_WIDTH - 7}px)`;
+            marker.dataset.step = clamped;
+            return clamped;
+        };
+
+        marker.onmousedown = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const onMove = (me) => {
+                const rect = markerGrid.getBoundingClientRect();
+                const x = me.clientX - rect.left;
+                const step = Math.round(x / CELL_WIDTH);
+                setMarkerStep(step);
+            };
+            const onUp = () => {
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+                App.call("$sequencer", "set_start_step", parseInt(marker.dataset.step));
+            };
+            window.addEventListener("mousemove", onMove);
+            window.addEventListener("mouseup", onUp);
+        };
+
+        markerGrid.onmousedown = (e) => {
+            if (e.target === marker) return;
+            const rect = markerGrid.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const step = setMarkerStep(Math.round(x / CELL_WIDTH));
+            App.call("$sequencer", "set_start_step", step);
+        };
+    } else {
+        markerGrid = document.getElementById("seq-start-marker-grid");
+        marker = document.getElementById("seq-start-marker");
+    }
+    markerGrid.style.width = `${totalSteps * CELL_WIDTH}px`;
+    markerGrid.dataset.totalSteps = totalSteps;
+    // Sync marker position with Ruby state
+    try {
+        const startStep = parseInt(App.call("$sequencer", "start_step").toString());
+        const clamped = Math.max(0, Math.min(totalSteps - 1, startStep));
+        marker.style.transform = `translateX(${clamped * CELL_WIDTH - 7}px)`;
+        marker.dataset.step = clamped;
+    } catch(e) {}
 
     // Remove tracks that no longer exist
     for (const [tIdx, cached] of trackRowsCache.entries()) {
