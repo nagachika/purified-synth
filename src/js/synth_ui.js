@@ -713,30 +713,3 @@ export function setupUI(App) {
   });
 }
 
-const keyMap = {
-  'z': 60, 's': 61, 'x': 62, 'd': 63, 'c': 64, 'v': 65, 'g': 66, 'b': 67, 'h': 68, 'n': 69, 'j': 70, 'm': 71,
-  ',': 72, 'q': 72, '2': 73, 'w': 74, '3': 75, 'e': 76, 'r': 77, '5': 78, 't': 79, '6': 80, 'y': 81, '7': 82, 'u': 83
-};
-
-export function setupKeyboard(App) {
-  const getFreq = (note) => 440.0 * Math.pow(2.0, (note - 69) / 12.0);
-  const viewSynth = document.getElementById("view-synthesizer");
-
-  window.addEventListener("keydown", (e) => {
-    const tag = e.target.tagName.toUpperCase();
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-
-    if (e.repeat) return;
-    if (!viewSynth || !viewSynth.classList.contains("active")) return;
-    const note = keyMap[e.key];
-    if (note) App.call("$synth", "note_on", getFreq(note));
-  });
-
-  window.addEventListener("keyup", (e) => {
-    const tag = e.target.tagName.toUpperCase();
-    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
-
-    const note = keyMap[e.key];
-    if (note) App.call("$synth", "note_off", getFreq(note));
-  });
-}

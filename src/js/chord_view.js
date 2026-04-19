@@ -73,6 +73,7 @@ export function setupChordView(App) {
     currentChordNotes = [];
     chordSelectedCell = {x: 0, y: 0};
     nameInput.value = "";
+    syncToRuby();
     renderChordEditor(App);
   };
 
@@ -107,6 +108,7 @@ export function setupChordView(App) {
           else if (newDim === 5) note.e = yVal;
       });
 
+      syncToRuby();
       renderChordEditor(App);
   };
 
@@ -169,6 +171,7 @@ export function setupChordView(App) {
         }
 
         nameInput.value = name;
+        syncToRuby();
         renderChordEditor(App);
       };
 
@@ -202,6 +205,7 @@ export function setupChordView(App) {
         playPreviewNote(App, newNote);
     }
 
+    syncToRuby();
     chordSelectedCell = {x, y};
     renderChordEditor(App);
   }
@@ -231,6 +235,7 @@ export function setupChordView(App) {
             currentChordNotes.push(newNote);
             playPreviewNote(App, newNote);
         }
+        syncToRuby();
         chordSelectedCell = { x, y };
         renderChordEditor(App);
     });
@@ -291,6 +296,24 @@ export function setupChordView(App) {
 
   renderChordList(App);
   renderChordEditor(App);
+
+  function syncToRuby() {
+    try {
+      App.call("$midiProcessor", "set_chord_notes", JSON.stringify(currentChordNotes));
+      App.call("$midiProcessor", "set_chord_dimension", parseInt(yAxisSel.value));
+    } catch (_) {}
+  }
+
+  return {
+    reRenderChord() {
+      const json = App.call("$midiProcessor", "get_chord_notes_json").toString();
+      currentChordNotes = JSON.parse(json);
+      renderChordEditor(App);
+    },
+    setChordDimension(dim) {
+      yAxisSel.value = dim;
+    }
+  };
 }
 
 export function playPreviewNote(App, noteObj) {

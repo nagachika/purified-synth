@@ -207,6 +207,18 @@ class Sequencer
     t.volume = vol.to_f if t
   end
 
+  def master_volume
+    @master_gain.gain.value
+  end
+
+  def master_volume=(val)
+    @master_gain.gain.value = val.to_f.clamp(0.0, 1.0)
+  end
+
+  def ctx_current_time
+    @ctx[:currentTime].to_f
+  end
+
   def get_track_volume(index)
     @tracks[index]&.volume || 1.0
   end

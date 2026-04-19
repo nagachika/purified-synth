@@ -3,7 +3,8 @@ import { loadChords } from "./chord_manager.js";
 import { setupChordView } from "./chord_view.js";
 import { setupPresets } from "./presets.js";
 import { setupSequencer } from "./sequencer_ui.js";
-import { setupUI, setupKeyboard } from "./synth_ui.js";
+import { setupUI } from "./synth_ui.js";
+import { setupMIDI } from "./midi_handler.js";
 import { setupVisualizer } from "./visualizer.js";
 import { setupPatternEditor } from "./pattern_editor.js";
 import { setupProjectManager } from "./project_manager.js";
@@ -121,10 +122,10 @@ function setupTabs() {  const tabSynth = document.getElementById("tab-synth");
     }
   }
 
-  tabSynth.onclick = () => switchTab("synth");
-  tabSeq.onclick = () => switchTab("seq");
-  tabChord.onclick = () => switchTab("chord");
-  if (tabPattern) tabPattern.onclick = () => switchTab("pattern");
+  tabSynth.onclick = () => { switchTab("synth"); try { App.call("$midiProcessor", "set_tab", "synth"); } catch(_) {} };
+  tabSeq.onclick = () => { switchTab("seq"); try { App.call("$midiProcessor", "set_tab", "seq"); } catch(_) {} };
+  tabChord.onclick = () => { switchTab("chord"); try { App.call("$midiProcessor", "set_tab", "chord"); } catch(_) {} };
+  if (tabPattern) tabPattern.onclick = () => { switchTab("pattern"); try { App.call("$midiProcessor", "set_tab", "pattern"); } catch(_) {} };
 }
 
 const main = async () => {
@@ -166,6 +167,7 @@ const main = async () => {
       "src/synthesizer/drum_machine.rb",
       "src/effects_chain.rb",
       "src/sequencer.rb",
+      "src/midi_processor.rb",
       "src/js_bridge.rb"
     ];
 
@@ -235,6 +237,7 @@ const main = async () => {
     loadScript('/src/synthesizer.rb');
     loadScript('/src/effects_chain.rb');
     loadScript('/src/sequencer.rb');
+    loadScript('/src/midi_processor.rb');
     loadScript('/src/js_bridge.rb');
 
     // Init Sequencer & Synth
@@ -282,13 +285,23 @@ const main = async () => {
     loadChords();
     setupTabs();
     setupUI(App);
-    setupKeyboard(App);
     setupVisualizer(App);
-    setupSequencer(App);
+    const seqUI = setupSequencer(App);
     setupPresets(App);
-    setupChordView(App);
+    const chordUI = setupChordView(App);
     setupPatternEditor(App);
     setupProjectManager(App);
+
+    // Initialize MIDI Processor
+    App.eval("$midiProcessor = MIDIProcessor.new($sequencer, $previewSynth, $chordSynth)");
+
+    // Setup Web MIDI API
+    setupMIDI(App, () => ({
+      reRenderChord:     () => chordUI.reRenderChord(),
+      setChordDimension: (d) => chordUI.setChordDimension(d),
+      reRenderSeq:       () => seqUI.reRenderSeq(),
+      setSeqDimension:   (d) => seqUI.setSeqDimension(d),
+    }));
   };
 };
 

@@ -731,6 +731,7 @@ export function setupSequencer(App) {
               editorNotes.push(newNote);
               playPreviewNote(App, newNote);
           }
+          syncSeqToRuby();
           editorSelectedCell = { x, y };
           renderSelectorLattice();
       });
@@ -756,6 +757,7 @@ export function setupSequencer(App) {
           editorNotes.push(newNote);
           playPreviewNote(App, newNote);
       }
+      syncSeqToRuby();
       editorSelectedCell = { x, y };
       renderSelectorLattice();
   }
@@ -771,18 +773,21 @@ export function setupSequencer(App) {
           else if (newDim === 4) note.d = yVal;
           else if (newDim === 5) note.e = yVal;
       });
+      syncSeqToRuby();
       renderSelectorLattice();
   };
 
   selectorClearBtn.onclick = () => {
       editorNotes = [];
       editorSelectedCell = { x: 0, y: 0 };
+      syncSeqToRuby();
       renderSelectorLattice();
   };
 
   selectorApplyBtn.onclick = () => {
       if (editorNotes.length === 0) return;
       applyChordToBlock(editorTrackIdx, editorStartStep, "custom", editorNotes);
+      try { App.call("$midiProcessor", "set_seq_editor_open", false); } catch(_) {}
       selectorModal.style.display = "none";
   };
 
@@ -808,6 +813,7 @@ export function setupSequencer(App) {
       else if (editorNotes.some(n => n.d !== 0)) inferredDim = 4;
       selectorYAxis.value = inferredDim;
 
+      syncSeqToRuby();
       renderSelectorLattice();
 
       // Render saved chord list
@@ -855,6 +861,7 @@ export function setupSequencer(App) {
                       else if (notes.some(n => n.d !== 0)) inferred = 4;
                       selectorYAxis.value = inferred;
                   }
+                  syncSeqToRuby();
                   renderSelectorLattice();
                   // Highlight selected chord item
                   selectorList.querySelectorAll("[data-chord]").forEach(el => el.style.outline = "none");
@@ -864,9 +871,13 @@ export function setupSequencer(App) {
               selectorList.appendChild(item);
           });
       }
+      try { App.call("$midiProcessor", "set_seq_editor_open", true); } catch(_) {}
       selectorModal.style.display = "flex";
   }
-  selectorClose.onclick = () => selectorModal.style.display = "none";
+  selectorClose.onclick = () => {
+    try { App.call("$midiProcessor", "set_seq_editor_open", false); } catch(_) {}
+    selectorModal.style.display = "none";
+  };
 
   function applyChordToBlock(t, s, name, notes) {
       const len = notes.length;
@@ -1035,4 +1046,33 @@ export function setupSequencer(App) {
 
   window.addEventListener("trackChanged", renderSequencer);
   renderSequencer();
+
+  // --- Master Volume Slider ---
+  const masterVolumeSlider = document.getElementById("seq-master-volume");
+  const masterVolumeDisplay = document.getElementById("val_seq-master-volume");
+  if (masterVolumeSlider) {
+    masterVolumeSlider.addEventListener("input", () => {
+      const vol = parseFloat(masterVolumeSlider.value);
+      if (masterVolumeDisplay) masterVolumeDisplay.textContent = vol.toFixed(2);
+      try { App.call("$sequencer", "master_volume=", vol); } catch(_) {}
+    });
+  }
+
+  function syncSeqToRuby() {
+    try {
+      App.call("$midiProcessor", "set_seq_notes", JSON.stringify(editorNotes));
+      App.call("$midiProcessor", "set_seq_dimension", parseInt(selectorYAxis.value));
+    } catch(_) {}
+  }
+
+  return {
+    reRenderSeq() {
+      const json = App.call("$midiProcessor", "get_seq_notes_json").toString();
+      editorNotes = JSON.parse(json);
+      renderSelectorLattice();
+    },
+    setSeqDimension(dim) {
+      selectorYAxis.value = dim;
+    }
+  };
 }
