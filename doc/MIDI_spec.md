@@ -1,47 +1,55 @@
-# Web MIDI 通信仕様書 (5x5 / 9x9 拡張対応版)
+# Web MIDI Communication Specification (9x9 Extended / Center-Aligned)
 
-## 1. 基本方針
-- **音律:** 純正律（Just Intonation）
-- **マッピング:** MIDI ノート番号を物理的な「格子インデックス」として扱う。
-- **拡張性:** 9x9 の格子（計81音）を仮想的な最大範囲として採番。現在の 5x5 コントローラーはそのうちの「左下エリア」を切り出したものとして実装する。
+## 1. Core Principles
+- **Tuning:** Just Intonation (JI)
+- **Mapping:** MIDI Note Numbers represent absolute coordinate indices in a 9x9 grid.
+- **Scalability:** The 5x5 UI acts as a viewport into the center of a virtual 9x9 grid.
 
-## 2. メッセージ構造
+## 2. Message Structure
 
-### 2.1 ノート・オン (Note On)
+### 2.1 Note On
 - **Status:** `0x90` (Channel 1)
-- **Data 1 (Note Number):** 後述の 9x9 マッピングに基づくインデックス
-- **Data 2 (Velocity):** 0〜127
+- **Data 1 (Note Number):** 9x9 Mapping Index (76 = Central Tonic).
+- **Data 2 (Velocity):** 0–127 (Based on contact area or vertical touch position).
 
-### 2.2 ノート・オフ (Note Off)
+### 2.2 Note Off
 - **Status:** `0x80` (Channel 1)
-- **Data 1 (Note Number):** ノート・オン時と同一の番号
+- **Data 1 (Note Number):** Matches the Note On number.
 - **Data 2 (Velocity):** `0`
 
-### 2.3 コントロール・チェンジ (Control Change)
-| CC番号 | パラメータ | 値の範囲 | 用途 |
+### 2.3 Control Change (CC)
+| CC# | Parameter | Value (Data 2) | Formula / Description |
 | :--- | :--- | :--- | :--- |
-| **20** | 次元切り替え | 3, 4, 5 | 周波数比の次元数設定 |
-| **21** | 音色プリセット | 0〜127 | シンセ音源の切り替え |
-| **22** | ルート音変更 | 0〜11 | 純正律の基準音 (C=0, C#=1...) |
-| **7** | マスターボリューム | 0〜127 | 全体のゲインコントロール |
+| **20** | Dimension Switch | 3, 4, 5 | Sets dimensionality of JI ratios. |
+| **21** | Sound Preset | 0–127 | Switches synthesizer engines. |
+| **22** | Root Key Change | 0–11 | Sets JI reference pitch (C=0, C#=1...). |
+| **23** | Octave Change | **61–67** | **Step-based Offset: `Value - 64`** |
+| **7** | Master Volume | 0–127 | Overall gain control. |
 
-## 3. ノート番号マッピング設計 (9x9 拡張)
+## 3. Note Number Mapping (9x9 Grid)
 
-全 81 音の番地をあらかじめ定義。5x5 コントローラーは `x[2-6], y[2-6]` の範囲を使用する。
+- **Formula:** `NoteNumber = 36 + (y * 9) + x`
+- **Center (Tonic):** (4,4) = **Note 76**
 
-- **計算式:** `NoteNumber = 36 + (y * 9) + x`
-- **基準点:** 左下 (x=0, y=0) = MIDI Note 36 (C1)
-
-### 座標・ノート番号対応表（抜粋）
-| y \ x | 0 (左) | 1 | 2 | 3 | 4 | ... | 8 (右) |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **8 (上)** | 108 | 109 | 110 | 111 | 112 | ... | 116 |
-| **...** | ... | ... | ... | ... | ... | ... | ... |
-| **4** | 72 | 73 | 74 | 75 | 76 | ... | 80 |
-| **3** | 63 | 64 | 65 | 66 | 67 | ... | 71 |
-| **2** | 54 | 55 | 56 | 57 | 58 | ... | 62 |
-| **1** | 45 | 46 | 47 | 48 | 49 | ... | 53 |
-| **0 (下)** | **36** | 37 | 38 | 39 | 40 | ... | 44 |
+### Coordinate to Note Number Mapping (5x5 Viewport)
+| y \ x | 2 | 3 | 4 (Center Axis) | 5 | 6 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **6 (Top)** | 92 | 93 | 94 | 95 | 96 |
+| **5** | 83 | 84 | 85 | 86 | 87 |
+| **4 (Center)** | 74 | 75 | **76 (Root)** | 77 | 78 |
+| **3** | 65 | 66 | 67 | 68 | 69 |
+| **2 (Bottom)** | 56 | 57 | 58 | 59 | 60 |
 
 ---
-*Memo: 5x5の実装時は、上記表の中央 25 マス分を抽出して UI に割り当てる。*
+## 4. Control Logic: CC#23 Octave Offset Mapping
+The value sent for CC#23 follows a 1-to-1 step increment/decrement centered at 64.
+
+| CC Value | Octave Offset |
+| :--- | :--- |
+| **67** | +3 |
+| **66** | +2 |
+| **65** | +1 |
+| **64** | **±0 (Unity)** |
+| **63** | -1 |
+| **62** | -2 |
+| **61** | -3 |
