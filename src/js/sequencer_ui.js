@@ -1055,6 +1055,8 @@ export function setupSequencer(App) {
       const vol = parseFloat(masterVolumeSlider.value);
       if (masterVolumeDisplay) masterVolumeDisplay.textContent = vol.toFixed(2);
       try { App.call("$sequencer", "master_volume=", vol); } catch(_) {}
+      try { App.call("$previewSynth", "volume=", vol); } catch(_) {}
+      try { App.call("$chordSynth", "volume=", vol); } catch(_) {}
     });
   }
 
