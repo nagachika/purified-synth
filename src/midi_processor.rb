@@ -93,11 +93,11 @@ class MIDIProcessor
       @preview_synth.note_off(freq) if freq
       noop
     when "chord"
-      changed = chord_note_off(note, @chord_notes, @chord_pending, @chord_dimension)
+      changed = chord_note_off(note, @chord_notes, @chord_pending, @chord_dimension, @chord_synth)
       changed ? { type: "re_render_chord" }.to_json : noop
     when "seq"
       if @seq_editor_open
-        changed = chord_note_off(note, @seq_notes, @seq_pending, @seq_dimension)
+        changed = chord_note_off(note, @seq_notes, @seq_pending, @seq_dimension, @chord_synth)
         return changed ? { type: "re_render_seq" }.to_json : noop
       end
       noop
@@ -137,26 +137,27 @@ class MIDIProcessor
     end
   end
 
-  def chord_note_on(note, notes, pending, dim, synth)
+  def chord_note_on(note, notes, pending, dim, _synth)
     coords   = midi_note_to_lattice(note, dim)
     x        = coords[:b]
     y        = y_from_coords(coords, dim)
     existing = find_note(notes, x, y, dim)
     base_a   = existing ? existing[:a] : 0
     pending[note] = { x: x, y: y, delta: 0, base_a: base_a }
-    preview = { a: base_a, b: coords[:b], c: coords[:c], d: coords[:d], e: coords[:e] }
-    freq    = calc_freq(preview)
-    now     = @sequencer.ctx_current_time
-    synth.schedule_note(freq, now, 0.3)
   end
 
-  def chord_note_off(note, notes, pending, dim)
+  def chord_note_off(note, notes, pending, dim, synth)
     state = pending.delete(note)
     return false unless state
     if state[:delta] != 0
       change_octave(notes, state[:x], state[:y], state[:delta], dim)
     else
       toggle_note(notes, state[:x], state[:y], dim)
+    end
+    committed = find_note(notes, state[:x], state[:y], dim)
+    if committed
+      freq = calc_freq({ a: committed[:a], b: committed[:b], c: committed[:c], d: committed[:d], e: committed[:e] })
+      synth.schedule_note(freq, @sequencer.ctx_current_time, 0.3)
     end
     true
   end
