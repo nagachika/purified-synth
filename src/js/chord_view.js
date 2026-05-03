@@ -284,8 +284,8 @@ export function setupChordView(App) {
           chordSelectedCell.x += dx;
           chordSelectedCell.y += dy;
           // Bounds
-          if(chordSelectedCell.x < -3) chordSelectedCell.x = -3;
-          if(chordSelectedCell.x > 3) chordSelectedCell.x = 3;
+          if(chordSelectedCell.x < -4) chordSelectedCell.x = -4;
+          if(chordSelectedCell.x > 4) chordSelectedCell.x = 4;
           if(chordSelectedCell.y < -2) chordSelectedCell.y = -2;
           if(chordSelectedCell.y > 2) chordSelectedCell.y = 2;
 
@@ -354,9 +354,9 @@ export function renderGenericLattice(container, notes, dim, selectedCell, onTogg
         }
     };
 
-    // Grid: X: -3 to 3 (7 cols), Y: 2 to -2 (5 rows)
+    // Grid: X: -4 to 4 (9 cols), Y: 2 to -2 (5 rows)
     for (let y = 2; y >= -2; y--) {
-      for (let x = -3; x <= 3; x++) {
+      for (let x = -4; x <= 4; x++) {
         const cell = document.createElement("div");
         cell.style.background = "#222";
         cell.style.color = "#fff";
