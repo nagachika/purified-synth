@@ -51,6 +51,9 @@ function handleAction(action, tabState) {
       if (action.dimension !== undefined) tabState.setSeqDimension(action.dimension);
       tabState.reRenderSeq();
       break;
+    case "set_synth_dimension":
+      if (action.dimension !== undefined) tabState.setSynthDimension(action.dimension);
+      break;
     case "update_master_volume": {
       const slider = document.getElementById("seq-master-volume");
       if (slider) {

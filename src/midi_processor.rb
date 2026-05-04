@@ -7,6 +7,7 @@ class MIDIProcessor
     @chord_synth   = chord_synth
 
     @current_tab        = "synth"
+    @synth_dimension    = 3
     @synth_active_notes = {}
     @chord_dimension    = 3
     @chord_notes        = []
@@ -19,6 +20,10 @@ class MIDIProcessor
 
   def set_tab(tab)
     @current_tab = tab.to_s
+  end
+
+  def set_synth_dimension(d)
+    @synth_dimension = d.to_i
   end
 
   def set_chord_dimension(d)
@@ -70,7 +75,7 @@ class MIDIProcessor
   def handle_note_on(note, _velocity)
     case @current_tab
     when "synth"
-      coords = midi_note_to_lattice(note, 3)
+      coords = midi_note_to_lattice(note, @synth_dimension)
       freq   = calc_freq(coords)
       @preview_synth.note_on(freq)
       @synth_active_notes[note] = freq
@@ -123,6 +128,9 @@ class MIDIProcessor
         transcribe_dimension(@seq_notes, @seq_dimension, dim)
         @seq_dimension = dim
         { type: "re_render_seq", dimension: dim }.to_json
+      elsif @current_tab == "synth"
+        @synth_dimension = dim
+        { type: "set_synth_dimension", dimension: dim }.to_json
       else
         noop
       end

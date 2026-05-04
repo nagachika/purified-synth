@@ -301,6 +301,7 @@ const main = async () => {
       setChordDimension: (d) => chordUI.setChordDimension(d),
       reRenderSeq:       () => seqUI.reRenderSeq(),
       setSeqDimension:   (d) => seqUI.setSeqDimension(d),
+      setSynthDimension: (d) => App.call("$midiProcessor", "set_synth_dimension", d),
     }));
   };
 };
