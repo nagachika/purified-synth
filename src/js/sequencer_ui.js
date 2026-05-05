@@ -295,6 +295,65 @@ export function setupSequencer(App) {
         marker.dataset.step = clamped;
     } catch(e) {}
 
+    // --- Measure ruler row ---
+    let rulerRow = document.getElementById("seq-measure-ruler-row");
+    let rulerGrid;
+    if (!rulerRow) {
+        rulerRow = document.createElement("div");
+        rulerRow.id = "seq-measure-ruler-row";
+        rulerRow.style.display = "flex";
+        rulerRow.style.gap = "0";
+        rulerRow.style.alignItems = "stretch";
+        rulerRow.style.marginBottom = "4px";
+        rulerRow.style.height = "18px";
+        rulerRow.style.flexShrink = "0";
+
+        const rLeft = document.createElement("div");
+        rLeft.style.width = "180px";
+        rLeft.style.flexShrink = "0";
+        rLeft.style.marginRight = "10px";
+        rulerRow.appendChild(rLeft);
+
+        const rWrapper = document.createElement("div");
+        rWrapper.className = "timeline-wrapper";
+        rWrapper.style.flexGrow = "1";
+        rWrapper.style.overflowX = "hidden";
+        rWrapper.style.overflowY = "hidden";
+        rWrapper.style.position = "relative";
+        rWrapper.style.background = "#1a1a1a";
+
+        rulerGrid = document.createElement("div");
+        rulerGrid.id = "seq-measure-ruler-grid";
+        rulerGrid.style.height = "100%";
+        rulerGrid.style.position = "relative";
+
+        rWrapper.appendChild(rulerGrid);
+        rulerRow.appendChild(rWrapper);
+        markerRow.insertAdjacentElement("afterend", rulerRow);
+    } else {
+        rulerGrid = document.getElementById("seq-measure-ruler-grid");
+    }
+
+    rulerGrid.style.width = `${totalSteps * CELL_WIDTH}px`;
+    if (rulerGrid.dataset.totalSteps !== String(totalSteps)) {
+        rulerGrid.dataset.totalSteps = totalSteps;
+        rulerGrid.innerHTML = "";
+        const measures = Math.ceil(totalSteps / 32);
+        for (let m = 0; m < measures; m++) {
+            const label = document.createElement("span");
+            label.textContent = m + 1;
+            label.style.position = "absolute";
+            label.style.left = `${m * 32 * CELL_WIDTH + 2}px`;
+            label.style.top = "2px";
+            label.style.fontSize = "0.65rem";
+            label.style.color = "#aaa";
+            label.style.lineHeight = "1";
+            label.style.pointerEvents = "none";
+            label.style.userSelect = "none";
+            rulerGrid.appendChild(label);
+        }
+    }
+
     // Remove tracks that no longer exist
     for (const [tIdx, cached] of trackRowsCache.entries()) {
         if (tIdx >= tracksCount) {
