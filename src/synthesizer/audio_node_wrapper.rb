@@ -37,7 +37,18 @@ class AudioParamWrapper
   end
 
   def cancel_and_hold_at_time(time)
-    @native_node.call(:cancelAndHoldAtTime, time.to_f)
+    t = time.to_f
+    if @native_node[:cancelAndHoldAtTime].typeof == "function"
+      begin
+        @native_node.call(:cancelAndHoldAtTime, t)
+        return
+      rescue
+        # Firefox may throw; fall through to fallback
+      end
+    end
+    # Fallback: cancel future events and freeze at the current intrinsic value
+    @native_node.call(:cancelScheduledValues, t)
+    @native_node.call(:setValueAtTime, @native_node[:value].to_f, t)
   end
 
   def set_target_at_time(target, time, time_constant)
