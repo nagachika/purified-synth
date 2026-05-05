@@ -5,7 +5,7 @@ export const dimensionColors = {
   2: "#ff7f50", // coral
   3: "#20b2aa", // lightseagreen
   4: "#9370db", // mediumpurple
-  5: "#ff69b4", // hotpink
+  5: "#ffc247", // amber yellow
   6: "#ffd700", // gold
   7: "#cd5c5c"  // indianred
 };
