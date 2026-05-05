@@ -962,6 +962,7 @@ export function setupSequencer(App) {
       delete window._tempArgs;
 
       App.call("$sequencer", "set_block_chord_name", t, s, name);
+      blockElementsCache.delete(`${t}-${s}`);
       renderSequencer();
   }
 
