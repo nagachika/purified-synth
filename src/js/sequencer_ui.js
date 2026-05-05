@@ -343,7 +343,7 @@ export function setupSequencer(App) {
             const label = document.createElement("span");
             label.textContent = m + 1;
             label.style.position = "absolute";
-            label.style.left = `${m * 32 * CELL_WIDTH + 2}px`;
+            label.style.left = `${m * 32 * CELL_WIDTH + 14}px`;
             label.style.top = "2px";
             label.style.fontSize = "0.65rem";
             label.style.color = "#aaa";
