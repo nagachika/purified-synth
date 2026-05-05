@@ -42,7 +42,7 @@ class ADSREnvelope
     # Target = 0, Start = t, TimeConstant = release / 3
     # Value reaches ~5% (e^-3) after 1.0 * release time.
 
-    @target_param.cancel_scheduled_values(t)
+    @target_param.cancel_and_hold_at_time(t)
 
     # Ensure release is not zero to avoid division by zero or instant change artifacts
     safe_release = @release.to_f

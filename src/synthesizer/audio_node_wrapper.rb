@@ -36,6 +36,10 @@ class AudioParamWrapper
     @native_node.call(:cancelScheduledValues, time.to_f)
   end
 
+  def cancel_and_hold_at_time(time)
+    @native_node.call(:cancelAndHoldAtTime, time.to_f)
+  end
+
   def set_target_at_time(target, time, time_constant)
     @native_node.call(:setTargetAtTime, target.to_f, time.to_f, time_constant.to_f)
   end
