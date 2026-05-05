@@ -71,8 +71,6 @@
     #start-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
     #start-btn { padding: 20px 40px; font-size: 1.5rem; cursor: pointer; border-radius: 8px; border: none; background: #007bff; color: white; box-shadow: 0 0 20px rgba(0,123,255,0.5); }
 
-    .keyboard-hint { grid-column: 1 / -1; text-align: center; margin-top: 20px; color: #888; }
-
     /* Modular Editor Styles */
     #modular-editor svg { background: #1a1a1a; display: block; }
     #modular-editor .arrowhead-path { fill: #888; }
@@ -255,10 +253,6 @@
           <label>Mix <span id="val_reverb_mix" class="value-display">0.3</span></label>
           <input type="range" id="reverb_mix" min="0" max="1.0" step="0.01" value="0.3">
         </div>
-      </div>
-
-      <div class="keyboard-hint" style="grid-column: 1 / -1;">
-        <p>Use your keyboard to play: <strong>Z X C V B N M</strong> etc.</p>
       </div>
     </div>
 
