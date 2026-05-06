@@ -49,6 +49,23 @@ export function setupSequencer(App) {
   const trackRowsCache = new Map(); // index -> { row, controlDiv, grid, playhead, ... }
   const blockElementsCache = new Map(); // "trackIdx-startStep" -> { element, dataHash }
 
+  window.addEventListener("presetsUpdated", () => {
+    const presets = getPresets();
+    trackRowsCache.forEach((cached) => {
+      if (cached.trackType === "melodic") {
+        const currentValue = cached.presetSel.value;
+        cached.presetSel.innerHTML = '<option value="">(Default)</option>';
+        Object.keys(presets).forEach(name => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          cached.presetSel.appendChild(opt);
+        });
+        cached.presetSel.value = currentValue;
+      }
+    });
+  });
+
   // Expose queue function to App
   App.queuePlayheadUpdates = (json) => {
     try {
@@ -514,13 +531,46 @@ export function setupSequencer(App) {
                     opt.textContent = name;
                     cached.presetSel.appendChild(opt);
                 });
-                cached.presetSel.onchange = (e) => {
-                    const name = e.target.value;
-                    if (name && presets[name]) {
-                        App.call("$sequencer", "import_track_patch", t, presets[name]);
-                        App.call("$sequencer", "set_track_preset_name", t, name);
-                    }
-                };
+                if (!cached._presetListenersAttached) {
+                    cached.presetSel.addEventListener("mousedown", () => {
+                        cached.presetSel._presetOpen = true;
+                        cached.presetSel._prevValue = cached.presetSel.value;
+                    });
+                    cached.presetSel.addEventListener("change", (e) => {
+                        cached.presetSel._presetOpen = false;
+                        const name = e.target.value;
+                        if (name) {
+                            const freshPresets = getPresets();
+                            if (freshPresets[name]) {
+                                App.call("$sequencer", "import_track_patch", t, freshPresets[name]);
+                                App.call("$sequencer", "set_track_preset_name", t, name);
+                            }
+                        } else {
+                            const patchJson = App.eval("$previewSynth.export_patch").toJS();
+                            App.call("$sequencer", "import_track_patch", t, patchJson);
+                            App.call("$sequencer", "set_track_preset_name", t, "");
+                        }
+                    });
+                    cached.presetSel.addEventListener("blur", () => {
+                        if (cached.presetSel._presetOpen) {
+                            cached.presetSel._presetOpen = false;
+                            const prev = cached.presetSel._prevValue;
+                            const curr = cached.presetSel.value;
+                            if (prev === curr && prev !== "") {
+                                const freshPresets = getPresets();
+                                if (freshPresets[prev]) {
+                                    App.call("$sequencer", "import_track_patch", t, freshPresets[prev]);
+                                    App.call("$sequencer", "set_track_preset_name", t, prev);
+                                }
+                            } else if (prev === curr && prev === "") {
+                                const patchJson = App.eval("$previewSynth.export_patch").toJS();
+                                App.call("$sequencer", "import_track_patch", t, patchJson);
+                                App.call("$sequencer", "set_track_preset_name", t, "");
+                            }
+                        }
+                    });
+                    cached._presetListenersAttached = true;
+                }
                 cached.arpBtn.style.cursor = "pointer";
                 cached.arpBtn.style.opacity = "1";
                 cached.arpBtn.title = "Arpeggiator ON/OFF";
@@ -543,8 +593,8 @@ export function setupSequencer(App) {
             cached.labelBtn.style.color = "#ccc";
         }
 
-        // Preset Value
-        if (trackType === "melodic") {
+        // Preset Value (skip while dropdown is open to avoid overriding user interaction)
+        if (trackType === "melodic" && !cached.presetSel._presetOpen) {
             cached.presetSel.value = App.call("$sequencer", "get_track_preset_name", t).toString();
         }
 
