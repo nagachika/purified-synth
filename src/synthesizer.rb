@@ -86,10 +86,6 @@ class Synthesizer
     @master_gain.gain.value = val.to_f * 0.5
   end
 
-  def freq_to_note(freq)
-    (69 + 12 * Math.log2(freq / 440.0)).round
-  end
-
   def note_on(freq)
     return if @ctx.typeof == "undefined"
 
@@ -102,8 +98,7 @@ class Synthesizer
       @active_voices[freq].stop_immediately
     end
 
-    note_num = freq_to_note(freq)
-    voice = Voice.new(@ctx, note_num, @custom_patch, self)
+    voice = Voice.new(@ctx, freq, @custom_patch, self)
     @active_voices[freq] = voice
     voice.start(@ctx[:currentTime].to_f)
   end
@@ -117,8 +112,7 @@ class Synthesizer
   end
 
   def schedule_note(freq, start_time, duration, velocity: 0.8)
-    note_num = freq_to_note(freq)
-    voice = Voice.new(@ctx, note_num, @custom_patch, self)
+    voice = Voice.new(@ctx, freq, @custom_patch, self)
     voice.start(start_time, velocity: velocity)
     voice.stop(start_time + duration)
   end

@@ -4,9 +4,9 @@ require "synthesizer/adsr_envelope"
 class Voice
   attr_reader :nodes, :envelopes
 
-  def initialize(ctx, note_number, patch, synth)
+  def initialize(ctx, freq, patch, synth)
     @ctx = ctx
-    @note_number = note_number
+    @freq = freq
     @patch = patch
     @synth = synth # Reference to Synthesizer for shared assets like noise_buffer
     @output_node = synth.master_gain # Standard output destination
@@ -18,7 +18,7 @@ class Voice
   end
 
   def build_graph
-    freq = note_number_to_freq(@note_number)
+    freq = @freq
 
     # 1. Create Nodes defined in the patch
     @patch[:nodes].each do |n|
@@ -133,8 +133,4 @@ class Voice
   end
 
   private
-
-  def note_number_to_freq(note)
-    440.0 * (2.0 ** ((note - 69) / 12.0))
-  end
 end
