@@ -2755,7 +2755,7 @@
           "division": 1,
           "octaves": 1
         },
-        "patch": "{\"nodes\":[{\"id\":\"vco\",\"type\":\"Oscillator\",\"params\":{\"type\":\"sawtooth\"},\"freq_track\":true},{\"id\":\"vca\",\"type\":\"Gain\",\"params\":{\"gain\":1},\"freq_track\":false},{\"id\":\"env\",\"type\":\"ADSR\",\"params\":{\"attack\":0.1,\"decay\":0.2,\"sustain\":0.7,\"release\":0.5},\"freq_track\":false},{\"id\":\"oscillator\",\"type\":\"Oscillator\",\"params\":{\"type\":\"sine\",\"frequency\":1200},\"freq_track\":false},{\"id\":\"gain\",\"type\":\"Gain\",\"params\":{\"gain\":100},\"freq_track\":false}],\"connections\":[{\"from\":\"vca\",\"to\":\"out\"},{\"from\":\"env\",\"to\":\"vca.gain\"},{\"from\":\"oscillator\",\"to\":\"gain\"},{\"from\":\"gain\",\"to\":\"vco.detune\"},{\"from\":\"vco\",\"to\":\"vca\"}]}"
+        "patch": "{\"nodes\":[{\"id\":\"vco\",\"type\":\"Oscillator\",\"params\":{\"type\":\"sine\"},\"freq_track\":true},{\"id\":\"vca\",\"type\":\"Gain\",\"params\":{\"gain\":1},\"freq_track\":false},{\"id\":\"env\",\"type\":\"ADSR\",\"params\":{\"attack\":0.1,\"decay\":0.2,\"sustain\":0.7,\"release\":0.5},\"freq_track\":false},{\"id\":\"oscillator\",\"type\":\"Oscillator\",\"params\":{\"type\":\"sine\",\"frequency\":1200},\"freq_track\":false},{\"id\":\"gain\",\"type\":\"Gain\",\"params\":{\"gain\":100},\"freq_track\":false}],\"connections\":[{\"from\":\"vca\",\"to\":\"out\"},{\"from\":\"env\",\"to\":\"vca.gain\"},{\"from\":\"oscillator\",\"to\":\"gain\"},{\"from\":\"gain\",\"to\":\"vco.detune\"},{\"from\":\"vco\",\"to\":\"vca\"}]}"
       }
     ]
   },
