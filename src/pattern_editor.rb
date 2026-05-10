@@ -13,18 +13,10 @@ class PatternEditor
     @element = element
     @doc = JS.global[:document]
 
-    @container   = @doc.call(:getElementById, "pattern-editor-container")
-    @list_el     = @doc.call(:getElementById, "pattern-list")
-    @new_btn     = @doc.call(:getElementById, "new-pattern-btn")
-    @name_input  = @doc.call(:getElementById, "pattern-name")
-    @play_btn    = @doc.call(:getElementById, "pattern-play-btn")
-    @bpm_input   = @doc.call(:getElementById, "pattern-bpm")
-    @bpm_display = @doc.call(:getElementById, "pattern-val-bpm")
-
     @current_pattern_id = nil
     @current_playhead_step = -1
 
-    bind_events
+    build_dom
     load_patterns
     update_pattern_list
 
@@ -33,9 +25,100 @@ class PatternEditor
     install_global_event_listeners
   end
 
+  def build_dom
+    style_host
+
+    # Left sidebar: pattern list + new pattern button
+    sidebar = create_div(
+      width: "250px", background: "#333", padding: "20px",
+      borderRight: "1px solid #444", display: "flex", flexDirection: "column"
+    )
+
+    sidebar_title = @doc.call(:createElement, "h2")
+    sidebar_title[:textContent] = "Patterns"
+    style(sidebar_title, color: "#4dabf7", borderBottom: "1px solid #555", paddingBottom: "10px")
+    sidebar.call(:appendChild, sidebar_title)
+
+    @list_el = create_div(
+      width: "100%", background: "#222", color: "white", border: "1px solid #555",
+      marginBottom: "10px", flexGrow: "1", padding: "5px", overflowY: "auto"
+    )
+    sidebar.call(:appendChild, @list_el)
+
+    @new_btn = @doc.call(:createElement, "button")
+    @new_btn[:textContent] = "+ New Pattern"
+    style(@new_btn,
+      width: "100%", padding: "8px", background: "#007bff", color: "white",
+      border: "none", cursor: "pointer", borderRadius: "4px", marginBottom: "10px"
+    )
+    sidebar.call(:appendChild, @new_btn)
+
+    @element.call(:appendChild, sidebar)
+
+    # Right main area: title + controls + grid
+    main = create_div(flexGrow: "1", padding: "20px", display: "flex", flexDirection: "column")
+
+    main_title = @doc.call(:createElement, "h2")
+    main_title[:textContent] = "Pattern Editor"
+    style(main_title, color: "#4dabf7")
+    main.call(:appendChild, main_title)
+
+    controls = create_div(display: "flex", gap: "10px", alignItems: "flex-end")
+    controls[:className] = "control-group"
+
+    # Name field
+    name_wrap = create_div(flexGrow: "1")
+    name_label = @doc.call(:createElement, "label")
+    name_label[:textContent] = "Name"
+    name_wrap.call(:appendChild, name_label)
+    @name_input = @doc.call(:createElement, "input")
+    @name_input[:type] = "text"
+    style(@name_input,
+      width: "100%", background: "#222", color: "white", border: "1px solid #555",
+      padding: "5px", borderRadius: "4px"
+    )
+    name_wrap.call(:appendChild, @name_input)
+    controls.call(:appendChild, name_wrap)
+
+    # BPM
+    bpm_wrap = create_div(width: "120px")
+    bpm_label = @doc.call(:createElement, "label")
+    bpm_label[:innerHTML] = 'BPM <span class="value-display"></span>'
+    bpm_wrap.call(:appendChild, bpm_label)
+    @bpm_display = bpm_label.call(:querySelector, ".value-display")
+    @bpm_display[:textContent] = "120"
+    @bpm_input = @doc.call(:createElement, "input")
+    @bpm_input[:type] = "range"
+    @bpm_input.call(:setAttribute, "min", "60")
+    @bpm_input.call(:setAttribute, "max", "200")
+    @bpm_input.call(:setAttribute, "step", "1")
+    @bpm_input[:value] = "120"
+    bpm_wrap.call(:appendChild, @bpm_input)
+    controls.call(:appendChild, bpm_wrap)
+
+    # Play button
+    @play_btn = @doc.call(:createElement, "button")
+    @play_btn[:innerHTML] = '<span class="material-icons">play_arrow</span> Preview'
+    style(@play_btn,
+      padding: "5px 15px", background: "#28a745", color: "white", border: "none",
+      cursor: "pointer", borderRadius: "4px", display: "flex", alignItems: "center", height: "28px"
+    )
+    controls.call(:appendChild, @play_btn)
+
+    main.call(:appendChild, controls)
+
+    @container = create_div(flexGrow: "1", overflowY: "auto")
+    main.call(:appendChild, @container)
+
+    @element.call(:appendChild, main)
+
+    bind_events
+  end
+
   def bind_events
     @new_btn.call(:addEventListener, "click", proc { on_new_pattern })
     @name_input.call(:addEventListener, "change", proc { |_e| on_rename })
+    @name_input.call(:addEventListener, "keydown", proc { |e| e.call(:stopPropagation) })
     @play_btn.call(:addEventListener, "click", proc { on_play_toggle })
     @bpm_input.call(:addEventListener, "input", proc { |e| on_bpm_input(e) })
   end
@@ -100,26 +183,19 @@ class PatternEditor
   def render_grid
     @container[:innerHTML] = ""
     unless @current_pattern_id
-      placeholder = @doc.call(:createElement, "div")
+      placeholder = create_div(color: "#aaa", textAlign: "center", padding: "20px")
       placeholder[:textContent] = "Select or create a pattern to edit."
-      ps = placeholder[:style]
-      ps[:color] = "#aaa"
-      ps[:textAlign] = "center"
-      ps[:padding] = "20px"
       @container.call(:appendChild, placeholder)
       return
     end
 
     pattern_data = JSON.parse($sequencer.get_pattern_events_json(@current_pattern_id))
 
-    table = @doc.call(:createElement, "div")
-    ts = table[:style]
-    ts[:display] = "grid"
-    ts[:gridTemplateColumns] = "100px repeat(#{STEPS}, 1fr)"
-    ts[:gap] = "2px"
-    ts[:background] = "#222"
-    ts[:border] = "1px solid #444"
-    ts[:padding] = "10px"
+    table = create_div(
+      display: "grid",
+      gridTemplateColumns: "100px repeat(#{STEPS}, 1fr)",
+      gap: "2px", background: "#222", border: "1px solid #444", padding: "10px"
+    )
 
     # Empty corner
     table.call(:appendChild, @doc.call(:createElement, "div"))
@@ -129,23 +205,17 @@ class PatternEditor
       header[:className] = "step-header"
       header.call(:setAttribute, "data-step", i.to_s)
       header[:textContent] = (i + 1).to_s
-      hs = header[:style]
-      hs[:textAlign] = "center"
-      hs[:fontSize] = "0.7rem"
-      hs[:color] = "#888"
-      hs[:fontWeight] = "bold" if i % 4 == 0
+      style(header, textAlign: "center", fontSize: "0.7rem", color: "#888")
+      header[:style][:fontWeight] = "bold" if i % 4 == 0
       table.call(:appendChild, header)
     end
 
     INSTRUMENTS.each do |inst|
-      label = @doc.call(:createElement, "div")
+      label = create_div(
+        color: "#ccc", display: "flex", alignItems: "center",
+        paddingLeft: "5px", fontSize: "0.9rem"
+      )
       label[:textContent] = inst
-      ls = label[:style]
-      ls[:color] = "#ccc"
-      ls[:display] = "flex"
-      ls[:alignItems] = "center"
-      ls[:paddingLeft] = "5px"
-      ls[:fontSize] = "0.9rem"
       table.call(:appendChild, label)
 
       active_steps = pattern_data[inst] || {}
@@ -154,24 +224,22 @@ class PatternEditor
         cell = @doc.call(:createElement, "div")
         cell[:className] = "step-cell"
         cell.call(:setAttribute, "data-step", i.to_s)
-        cs = cell[:style]
-        cs[:height] = "30px"
 
         is_active = active_steps.key?(i.to_s)
         velocity = is_active ? active_steps[i.to_s].to_f : 0
 
-        if is_active
-          alpha = 0.5 + velocity * 0.5
-          cs[:background] = "rgba(255, 135, 135, #{alpha})"
-          cell[:title] = "Velocity: #{(velocity * 127).round}"
-        else
-          cs[:background] = i % 4 == 0 ? "#444" : "#333"
-        end
+        bg = if is_active
+               alpha = 0.5 + velocity * 0.5
+               cell[:title] = "Velocity: #{(velocity * 127).round}"
+               "rgba(255, 135, 135, #{alpha})"
+             else
+               i % 4 == 0 ? "#444" : "#333"
+             end
 
-        cs[:borderRadius] = "2px"
-        cs[:cursor] = "pointer"
-        cs[:border] = "1px solid #555"
-        cs[:transition] = "border-color 0.1s, box-shadow 0.1s"
+        style(cell,
+          height: "30px", background: bg, borderRadius: "2px", cursor: "pointer",
+          border: "1px solid #555", transition: "border-color 0.1s, box-shadow 0.1s"
+        )
 
         pid = @current_pattern_id
         instrument = inst
@@ -201,23 +269,18 @@ class PatternEditor
     end
 
     patterns.each do |p|
-      row = @doc.call(:createElement, "div")
-      rs = row[:style]
-      rs[:display] = "flex"
-      rs[:alignItems] = "center"
-      rs[:justifyContent] = "space-between"
-      rs[:padding] = "5px"
-      rs[:marginBottom] = "1px"
-      rs[:background] = (p["id"] == @current_pattern_id) ? "#007bff" : "#333"
-      rs[:cursor] = "pointer"
+      row = create_div(
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "5px", marginBottom: "1px",
+        background: (p["id"] == @current_pattern_id) ? "#007bff" : "#333",
+        cursor: "pointer"
+      )
 
       name_span = @doc.call(:createElement, "span")
       name_span[:textContent] = p["name"]
-      ns = name_span[:style]
-      ns[:flexGrow] = "1"
-      ns[:whiteSpace] = "nowrap"
-      ns[:overflow] = "hidden"
-      ns[:textOverflow] = "ellipsis"
+      style(name_span,
+        flexGrow: "1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+      )
 
       pid = p["id"]
       pname = p["name"]
@@ -225,14 +288,10 @@ class PatternEditor
 
       del_btn = @doc.call(:createElement, "button")
       del_btn[:innerHTML] = "&times;"
-      ds = del_btn[:style]
-      ds[:background] = "transparent"
-      ds[:border] = "none"
-      ds[:color] = "#ffcccc"
-      ds[:fontWeight] = "bold"
-      ds[:cursor] = "pointer"
-      ds[:padding] = "0 8px"
-      ds[:fontSize] = "1.2rem"
+      style(del_btn,
+        background: "transparent", border: "none", color: "#ffcccc",
+        fontWeight: "bold", cursor: "pointer", padding: "0 8px", fontSize: "1.2rem"
+      )
       del_btn[:title] = "Delete Pattern"
 
       del_btn.call(:addEventListener, "click", proc { |e|
@@ -329,6 +388,25 @@ class PatternEditor
   end
 
   private
+
+  def style_host
+    s = @element[:style]
+    s[:display] = "flex"
+    s[:flexGrow] = "1"
+    s[:width] = "100%"
+    s[:height] = "100%"
+  end
+
+  def create_div(**styles)
+    el = @doc.call(:createElement, "div")
+    style(el, **styles)
+    el
+  end
+
+  def style(el, **styles)
+    s = el[:style]
+    styles.each { |k, v| s[k] = v }
+  end
 
   # rAF loop and polling are owned by JS so the Ruby VM is invoked from a single
   # JS-side scheduler, mirroring the original setupPatternEditor timing.

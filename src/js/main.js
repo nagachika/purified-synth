@@ -311,9 +311,7 @@ const main = async () => {
     {
       const patternView = document.getElementById("view-pattern");
       if (patternView) {
-        const el = document.createElement("pattern-editor");
-        el.style.display = "none"; // host element is invisible; logic operates on existing DOM
-        patternView.appendChild(el);
+        patternView.appendChild(document.createElement("pattern-editor"));
       }
     }
 

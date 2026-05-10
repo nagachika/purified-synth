@@ -335,31 +335,8 @@
       </div>
     </div>
 
-    <!-- PATTERN VIEW -->
-    <div id="view-pattern" class="view">
-        <div style="width: 250px; background: #333; padding: 20px; border-right: 1px solid #444; display: flex; flex-direction: column;">
-            <h2 style="color: #4dabf7; border-bottom: 1px solid #555; padding-bottom: 10px;">Patterns</h2>
-            <div id="pattern-list" style="width: 100%; background: #222; color: white; border: 1px solid #555; margin-bottom: 10px; flex-grow: 1; padding: 5px; overflow-y: auto;"></div>
-            <button id="new-pattern-btn" style="width: 100%; padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; margin-bottom: 10px;">+ New Pattern</button>
-        </div>
-        <div style="flex-grow: 1; padding: 20px; display: flex; flex-direction: column;">
-            <h2 style="color: #4dabf7;">Pattern Editor</h2>
-            <div class="control-group" style="display: flex; gap: 10px; align-items: flex-end;">
-                <div style="flex-grow: 1;">
-                  <label>Name</label>
-                  <input type="text" id="pattern-name" style="width: 100%; background: #222; color: white; border: 1px solid #555; padding: 5px; border-radius: 4px;">
-                </div>
-                <div style="width: 120px;">
-                  <label>BPM <span id="pattern-val-bpm" class="value-display">120</span></label>
-                  <input type="range" id="pattern-bpm" min="60" max="200" step="1" value="120">
-                </div>
-                <button id="pattern-play-btn" style="padding: 5px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 4px; display: flex; align-items: center; height: 28px;"><span class="material-icons">play_arrow</span> Preview</button>
-            </div>
-            <div id="pattern-editor-container" style="flex-grow: 1; overflow-y: auto;">
-                <!-- Grid -->
-            </div>
-        </div>
-    </div>
+    <!-- PATTERN VIEW (populated by <pattern-editor> WebComponent inserted from main.js) -->
+    <div id="view-pattern" class="view"></div>
 
   </div>
 
