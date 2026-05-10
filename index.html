@@ -270,18 +270,8 @@
   <!-- <chord-selector-modal> WebComponent inserted dynamically from main.js -->
   <div id="chord-selector-host"></div>
 
-  <!-- Modal for Selecting Patterns in Sequencer -->
-  <div id="pattern-selector-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center;">
-    <div class="panel" style="width: 300px; max-width: 90%; height: 60%; display: flex; flex-direction: column;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 10px;">
-            <h2 style="margin: 0; border: none; padding: 0;">Select Pattern</h2>
-            <button id="close-pattern-selector" style="padding: 5px 10px; background: #dc3545;">Close</button>
-        </div>
-        <div id="pattern-selector-list" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
-            <!-- Pattern items -->
-        </div>
-    </div>
-  </div>
+  <!-- <pattern-selector-modal> WebComponent inserted dynamically from main.js -->
+  <div id="pattern-selector-host"></div>
 
   <script type="module" src="src/js/main.js"></script>
   <script>

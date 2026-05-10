@@ -86,7 +86,8 @@ const main = async () => {
       "src/chord_editor.rb",
       "src/effects_panel.rb",
       "src/tab_bar.rb",
-      "src/chord_selector_modal.rb"
+      "src/chord_selector_modal.rb",
+      "src/pattern_selector_modal.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -225,6 +226,7 @@ const main = async () => {
     loadScript('/src/effects_panel.rb');
     loadScript('/src/tab_bar.rb');
     loadScript('/src/chord_selector_modal.rb');
+    loadScript('/src/pattern_selector_modal.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {
@@ -257,8 +259,16 @@ const main = async () => {
       chordSelectorRef = `wc:${el.__rubyId}`;
     }
 
-    // Sequencer UI must be wired up after the chord-selector-modal exists.
-    setupSequencer(App, { chordSelectorRef });
+    let patternSelectorRef = null;
+    const patternSelectorHost = document.getElementById("pattern-selector-host");
+    if (patternSelectorHost) {
+      const el = document.createElement("pattern-selector-modal");
+      patternSelectorHost.appendChild(el);
+      patternSelectorRef = `wc:${el.__rubyId}`;
+    }
+
+    // Sequencer UI must be wired up after the selector modals exist.
+    setupSequencer(App, { chordSelectorRef, patternSelectorRef });
 
     // Initialize MIDI Processor
     App.eval("$midiProcessor = MIDIProcessor.new($sequencer, $previewSynth, $chordSynth)");

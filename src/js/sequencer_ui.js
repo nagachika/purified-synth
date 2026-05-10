@@ -8,8 +8,12 @@ let lastProcessedStep = -1;
 
 export function setupSequencer(App, opts = {}) {
   const chordSelectorRef = opts.chordSelectorRef;
+  const patternSelectorRef = opts.patternSelectorRef;
   const openChordSelector = (t, s) => {
     if (chordSelectorRef) App.call(chordSelectorRef, "open", t, s);
+  };
+  const openPatternSelector = (t, s, currentPatternId) => {
+    if (patternSelectorRef) App.call(patternSelectorRef, "open", t, s, currentPatternId || "");
   };
   const rowsContainer = document.getElementById("sequencer-rows");
   const playBtn = document.getElementById("seq-play-btn");
@@ -21,11 +25,6 @@ export function setupSequencer(App, opts = {}) {
   const measuresDisplay = document.getElementById("val_measures");
   const rootFreqInput = document.getElementById("root_freq");
   const swingInput = document.getElementById("swing_amount");
-
-  // Pattern Selector Modal (Rhythmic)
-  const patternModal = document.getElementById("pattern-selector-modal");
-  const patternClose = document.getElementById("close-pattern-selector");
-  const patternList = document.getElementById("pattern-selector-list");
 
   let isDrawing = false;
   let drawStartStep = 0;
@@ -812,60 +811,6 @@ export function setupSequencer(App, opts = {}) {
   // The chord selector modal is implemented as the <chord-selector-modal>
   // WebComponent (src/chord_selector_modal.rb); openChordSelector at the top
   // of this function delegates to it via App.call.
-
-  // --- RHYTHMIC PATTERN SELECTOR ---
-  function openPatternSelector(trackIdx, startStep, currentPatternId) {
-    if(!patternModal) return; // Guard if not in HTML yet
-    patternList.innerHTML = "";
-
-    // Fetch patterns
-    let patterns = [];
-    try {
-        const json = App.call("$sequencer", "get_patterns_json").toString();
-        patterns = JSON.parse(json);
-    } catch(e) {}
-
-    patterns.forEach(p => {
-        const item = document.createElement("div");
-        item.style.background = (p.id === currentPatternId) ? "#007bff" : "#444";
-        item.style.padding = "10px";
-        item.style.borderRadius = "4px";
-        item.style.cursor = "pointer";
-        item.style.marginBottom = "5px";
-        item.style.color = "white";
-        item.textContent = p.name;
-
-        item.onclick = () => {
-             // Assign pattern to block
-             App.call("$sequencer", "set_block_pattern_id", trackIdx, startStep, p.id);
-             patternModal.style.display = "none";
-             renderSequencer();
-
-             // Select this pattern in editor (so if we go there later, it's selected)
-             window.dispatchEvent(new CustomEvent("selectPattern", { detail: { id: p.id } }));
-        };
-
-        const editBtn = document.createElement("button");
-        editBtn.textContent = "Edit";
-        editBtn.style.float = "right";
-        editBtn.style.fontSize = "0.7rem";
-        editBtn.onclick = (e) => {
-            e.stopPropagation();
-            patternModal.style.display = "none";
-             const tabPattern = document.getElementById("tab-pattern");
-             if(tabPattern) tabPattern.click();
-             window.dispatchEvent(new CustomEvent("selectPattern", { detail: { id: p.id } }));
-        };
-        item.appendChild(editBtn);
-
-        patternList.appendChild(item);
-    });
-
-    patternModal.style.display = "flex";
-  }
-
-  if(patternClose) patternClose.onclick = () => patternModal.style.display = "none";
-
 
   // --- Event Listeners ---
 

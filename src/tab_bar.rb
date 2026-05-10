@@ -50,6 +50,7 @@ class TabBar
   def build_dom
     TABS.each do |t|
       btn = @doc.call(:createElement, "button")
+      btn[:id] = "tab-#{t[:id]}"
       btn[:textContent] = t[:label]
       btn[:className] = "tab-btn"
       tid = t[:id]
