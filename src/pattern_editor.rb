@@ -124,8 +124,10 @@ class PatternEditor
   end
 
   def on_new_pattern
-    name = JS.global.call(:prompt, "Enter pattern name:", "New Beat").to_s
-    return if name.empty? || name == "null" || name == "undefined"
+    result = JS.global.call(:prompt, "Enter pattern name:", "New Beat")
+    return if result == JS::Null
+    name = result.to_s
+    return if name.empty?
     $sequencer.create_pattern(name)
     save_patterns
     patterns = JSON.parse($sequencer.get_patterns_json)
@@ -259,76 +261,15 @@ class PatternEditor
 
   def update_pattern_list
     patterns = JSON.parse($sequencer.get_patterns_json)
-    @list_el[:innerHTML] = ""
-
-    if @current_pattern_id && !patterns.find { |p| p["id"] == @current_pattern_id }
-      @current_pattern_id = patterns.empty? ? nil : patterns[0]["id"]
-    end
-    if @current_pattern_id.nil? && !patterns.empty?
-      @current_pattern_id = patterns[0]["id"]
-    end
-
-    patterns.each do |p|
-      row = create_div(
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "5px", marginBottom: "1px",
-        background: (p["id"] == @current_pattern_id) ? "#007bff" : "#333",
-        cursor: "pointer"
-      )
-
-      name_span = @doc.call(:createElement, "span")
-      name_span[:textContent] = p["name"]
-      style(name_span,
-        flexGrow: "1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
-      )
-
-      pid = p["id"]
-      pname = p["name"]
-      name_span.call(:addEventListener, "click", proc { load_pattern(pid) })
-
-      del_btn = @doc.call(:createElement, "button")
-      del_btn[:innerHTML] = "&times;"
-      style(del_btn,
-        background: "transparent", border: "none", color: "#ffcccc",
-        fontWeight: "bold", cursor: "pointer", padding: "0 8px", fontSize: "1.2rem"
-      )
-      del_btn[:title] = "Delete Pattern"
-
-      del_btn.call(:addEventListener, "click", proc { |e|
-        e.call(:stopPropagation)
-        confirmed = JS.global.call(:confirm, "Delete pattern \"#{pname}\"?").to_s == "true"
-        if confirmed
-          $sequencer.delete_pattern(pid)
-          save_patterns
-          update_pattern_list
-        end
-      })
-
-      row.call(:appendChild, name_span)
-      row.call(:appendChild, del_btn)
-      @list_el.call(:appendChild, row)
-    end
-
-    if @current_pattern_id
-      load_pattern(@current_pattern_id, false)
-    else
-      render_grid
-    end
+    ensure_current_pattern(patterns)
+    render_pattern_list(patterns)
+    sync_name_input(patterns)
+    render_grid
   end
 
-  def load_pattern(id, refresh_list = true)
+  def load_pattern(id)
     @current_pattern_id = id
-    name = ""
-    patterns = JSON.parse($sequencer.get_patterns_json)
-    p = patterns.find { |x| x["id"] == id }
-    name = p["name"] if p
-    @name_input[:value] = name
-
-    if refresh_list
-      update_pattern_list
-    else
-      render_grid
-    end
+    update_pattern_list
   rescue => e
     puts "[PatternEditor] load_pattern error: #{e.message}"
   end
@@ -389,6 +330,64 @@ class PatternEditor
 
   private
 
+  def ensure_current_pattern(patterns)
+    if @current_pattern_id && !patterns.find { |p| p["id"] == @current_pattern_id }
+      @current_pattern_id = patterns.empty? ? nil : patterns[0]["id"]
+    end
+    if @current_pattern_id.nil? && !patterns.empty?
+      @current_pattern_id = patterns[0]["id"]
+    end
+  end
+
+  def render_pattern_list(patterns)
+    @list_el[:innerHTML] = ""
+
+    patterns.each do |p|
+      row = create_div(
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "5px", marginBottom: "1px",
+        background: (p["id"] == @current_pattern_id) ? "#007bff" : "#333",
+        cursor: "pointer"
+      )
+
+      name_span = @doc.call(:createElement, "span")
+      name_span[:textContent] = p["name"]
+      style(name_span,
+        flexGrow: "1", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
+      )
+
+      pid = p["id"]
+      pname = p["name"]
+      name_span.call(:addEventListener, "click", proc { load_pattern(pid) })
+
+      del_btn = @doc.call(:createElement, "button")
+      del_btn[:innerHTML] = "&times;"
+      style(del_btn,
+        background: "transparent", border: "none", color: "#ffcccc",
+        fontWeight: "bold", cursor: "pointer", padding: "0 8px", fontSize: "1.2rem"
+      )
+      del_btn[:title] = "Delete Pattern"
+
+      del_btn.call(:addEventListener, "click", proc { |e|
+        e.call(:stopPropagation)
+        if JS.global.call(:confirm, "Delete pattern \"#{pname}\"?") == JS::True
+          $sequencer.delete_pattern(pid)
+          save_patterns
+          update_pattern_list
+        end
+      })
+
+      row.call(:appendChild, name_span)
+      row.call(:appendChild, del_btn)
+      @list_el.call(:appendChild, row)
+    end
+  end
+
+  def sync_name_input(patterns)
+    p = patterns.find { |x| x["id"] == @current_pattern_id }
+    @name_input[:value] = p ? p["name"] : ""
+  end
+
   def style_host
     s = @element[:style]
     s[:display] = "flex"
@@ -410,12 +409,17 @@ class PatternEditor
 
   # rAF loop and polling are owned by JS so the Ruby VM is invoked from a single
   # JS-side scheduler, mirroring the original setupPatternEditor timing.
+  # The AbortSignal owned by the WebComponent base stops them on disconnect.
   def install_animation_loop
-    rid = @element[:__rubyId].to_s
+    rid = @element[:__rubyId].to_i
+    JS.global[:__wcSignal] = @element[:__abort][:signal]
     JS.eval(<<~JS)
       (() => {
+        const signal = window.__wcSignal;
+        delete window.__wcSignal;
         function animate() {
-          try { App.eval("WebComponent::WC_REGISTRY[#{rid}].update_highlight"); } catch(e) {}
+          if (signal.aborted) return;
+          try { App.call("wc:#{rid}", "update_highlight"); } catch(e) {}
           requestAnimationFrame(animate);
         }
         requestAnimationFrame(animate);
@@ -424,29 +428,36 @@ class PatternEditor
   end
 
   def install_preview_polling
-    rid = @element[:__rubyId].to_s
+    rid = @element[:__rubyId].to_i
+    JS.global[:__wcSignal] = @element[:__abort][:signal]
     JS.eval(<<~JS)
-      setInterval(() => {
-        try { App.eval("WebComponent::WC_REGISTRY[#{rid}].update_preview_ui"); } catch(e) {}
-      }, 200);
+      (() => {
+        const signal = window.__wcSignal;
+        delete window.__wcSignal;
+        const id = setInterval(() => {
+          try { App.call("wc:#{rid}", "update_preview_ui"); } catch(e) {}
+        }, 200);
+        signal.addEventListener('abort', () => clearInterval(id));
+      })();
     JS
   end
 
   def install_global_event_listeners
-    rid = @element[:__rubyId].to_s
+    rid = @element[:__rubyId].to_i
+    JS.global[:__wcSignal] = @element[:__abort][:signal]
     JS.eval(<<~JS)
-      window.addEventListener("refreshPatterns", () => {
-        try { App.eval("WebComponent::WC_REGISTRY[#{rid}].update_pattern_list"); } catch(e) {}
-      });
-      window.addEventListener("selectPattern", (e) => {
-        if (e.detail && e.detail.id) {
-          window._selectPatternId = e.detail.id;
-          try {
-            App.eval("WebComponent::WC_REGISTRY[#{rid}].load_pattern(JS.global[:_selectPatternId].to_s)");
-          } catch(err) {}
-          delete window._selectPatternId;
-        }
-      });
+      (() => {
+        const signal = window.__wcSignal;
+        delete window.__wcSignal;
+        window.addEventListener("refreshPatterns", () => {
+          App.call("wc:#{rid}", "update_pattern_list");
+        }, { signal });
+        window.addEventListener("selectPattern", (e) => {
+          if (e.detail && e.detail.id) {
+            App.call("wc:#{rid}", "load_pattern", e.detail.id);
+          }
+        }, { signal });
+      })();
     JS
   end
 

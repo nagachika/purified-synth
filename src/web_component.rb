@@ -20,6 +20,7 @@ require 'js'
 # the require that triggers register() returns.
 module WebComponent
   WC_REGISTRY = {}
+  WC_NEXT_ID  = [0]  # mutable container so register() can bump without reassigning the constant
 
   def self.included(base)
     base.extend(ClassMethods)
@@ -35,10 +36,13 @@ module WebComponent
             connectedCallback() {
               if (this.__rubyId !== undefined) return;
 
+              this.__abort = new AbortController();
+
               window.__wcElement = this;
               const id = App.eval(`
                 inst = #{ruby_class_name}.new
-                id   = WebComponent::WC_REGISTRY.size
+                id   = WebComponent::WC_NEXT_ID[0]
+                WebComponent::WC_NEXT_ID[0] = id + 1
                 WebComponent::WC_REGISTRY[id] = inst
                 this_elem = JS.global[:__wcElement]
                 this_elem[:__rubyId] = id
@@ -51,12 +55,22 @@ module WebComponent
 
             disconnectedCallback() {
               if (this.__rubyId === undefined) return;
+              const id = this.__rubyId;
+
+              if (this.__abort) {
+                this.__abort.abort();
+                this.__abort = undefined;
+              }
+
               window.__wcElement = this;
               App.eval(`
-                inst = WebComponent::WC_REGISTRY[JS.global[:__wcElement][:__rubyId].to_i]
+                id   = JS.global[:__wcElement][:__rubyId].to_i
+                inst = WebComponent::WC_REGISTRY.delete(id)
                 inst.disconnected_callback if inst
               `);
               delete window.__wcElement;
+
+              this.__rubyId = undefined;
             }
           }
 
