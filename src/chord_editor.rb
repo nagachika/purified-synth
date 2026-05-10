@@ -198,7 +198,7 @@ class ChordEditor
     dim = @y_axis[:value].to_i
     notes_copy = JSON.parse(@current_chord_notes.to_json)
     $chordManager.update_chord(name, { "notes" => notes_copy, "dimension" => dim })
-    JS.eval("window.dispatchEvent(new Event('chordsUpdated'))")
+    JS.eval("setTimeout(() => window.dispatchEvent(new Event('chordsUpdated')), 0)")
     render_chord_list
     JS.global.call(:alert, "Chord \"#{name}\" saved!")
   end
@@ -277,7 +277,7 @@ class ChordEditor
         confirmed = JS.global.call(:confirm, "Delete chord \"#{cap_name}\"?").to_s == "true"
         if confirmed
           $chordManager.delete_chord(cap_name)
-          JS.eval("window.dispatchEvent(new Event('chordsUpdated'))")
+          JS.eval("setTimeout(() => window.dispatchEvent(new Event('chordsUpdated')), 0)")
           render_chord_list
         end
       })

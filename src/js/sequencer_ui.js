@@ -1,13 +1,16 @@
 import { CELL_WIDTH, drawTetrisShape } from "./utils.js";
 import { getChords } from "./chord_manager.js";
 import { getPresets } from "./presets.js";
-import { renderGenericLattice, playPreviewNote } from "./chord_lattice.js";
 
 // Queue for future playhead updates from Ruby
 const playheadQueue = [];
 let lastProcessedStep = -1;
 
-export function setupSequencer(App) {
+export function setupSequencer(App, opts = {}) {
+  const chordSelectorRef = opts.chordSelectorRef;
+  const openChordSelector = (t, s) => {
+    if (chordSelectorRef) App.call(chordSelectorRef, "open", t, s);
+  };
   const rowsContainer = document.getElementById("sequencer-rows");
   const playBtn = document.getElementById("seq-play-btn");
   const addTrackBtn = document.getElementById("add_track_btn");
@@ -18,22 +21,6 @@ export function setupSequencer(App) {
   const measuresDisplay = document.getElementById("val_measures");
   const rootFreqInput = document.getElementById("root_freq");
   const swingInput = document.getElementById("swing_amount");
-
-  // Chord Selector Modal (Melodic)
-  const selectorModal = document.getElementById("chord-selector-modal");
-  const selectorClose = document.getElementById("close-chord-selector");
-  const selectorList = document.getElementById("selector-list");
-
-  // Inline Chord Editor in Selector Modal
-  const selectorLattice = document.getElementById("selector-lattice-grid");
-  const selectorYAxis = document.getElementById("selector-y-axis");
-  const selectorApplyBtn = document.getElementById("selector-apply-btn");
-  const selectorClearBtn = document.getElementById("selector-clear-btn");
-
-  let editorNotes = [];
-  let editorSelectedCell = { x: 0, y: 0 };
-  let editorTrackIdx = -1;
-  let editorStartStep = -1;
 
   // Pattern Selector Modal (Rhythmic)
   const patternModal = document.getElementById("pattern-selector-modal");
@@ -48,6 +35,12 @@ export function setupSequencer(App) {
   // Cache for DOM elements to avoid full re-renders
   const trackRowsCache = new Map(); // index -> { row, controlDiv, grid, playhead, ... }
   const blockElementsCache = new Map(); // "trackIdx-startStep" -> { element, dataHash }
+
+  // Refresh after the chord selector modal applies new notes to a block.
+  window.addEventListener("seqBlockUpdated", () => {
+    blockElementsCache.clear();
+    renderSequencer();
+  });
 
   window.addEventListener("presetsUpdated", () => {
     const presets = getPresets();
@@ -816,205 +809,9 @@ export function setupSequencer(App) {
       }
   }
 
-  // --- INLINE CHORD EDITOR (in selector modal) ---
-  function renderSelectorLattice() {
-      const dim = parseInt(selectorYAxis.value);
-      renderGenericLattice(selectorLattice, editorNotes, dim, editorSelectedCell, (x, y) => {
-          toggleEditorNote(x, y);
-      }, (x, y, delta) => {
-          const note = editorNotes.find(n => {
-              let match = (n.b === x);
-              if (dim === 3) match = match && (n.c === y);
-              else if (dim === 4) match = match && (n.d === y);
-              else if (dim === 5) match = match && (n.e === y);
-              return match;
-          });
-          if (note) {
-              note.a += delta;
-              playPreviewNote(App, note);
-          } else {
-              const newNote = { a: delta, b: x, c: 0, d: 0, e: 0 };
-              if (dim === 3) newNote.c = y;
-              else if (dim === 4) newNote.d = y;
-              else if (dim === 5) newNote.e = y;
-              editorNotes.push(newNote);
-              playPreviewNote(App, newNote);
-          }
-          syncSeqToRuby();
-          editorSelectedCell = { x, y };
-          renderSelectorLattice();
-      });
-  }
-
-  function toggleEditorNote(x, y) {
-      const dim = parseInt(selectorYAxis.value);
-      const idx = editorNotes.findIndex(n => {
-          let match = (n.b === x);
-          if (dim === 3) match = match && (n.c === y);
-          else if (dim === 4) match = match && (n.d === y);
-          else if (dim === 5) match = match && (n.e === y);
-          return match;
-      });
-
-      if (idx >= 0) {
-          editorNotes.splice(idx, 1);
-      } else {
-          const newNote = { a: 0, b: x, c: 0, d: 0, e: 0 };
-          if (dim === 3) newNote.c = y;
-          else if (dim === 4) newNote.d = y;
-          else if (dim === 5) newNote.e = y;
-          editorNotes.push(newNote);
-          playPreviewNote(App, newNote);
-      }
-      syncSeqToRuby();
-      editorSelectedCell = { x, y };
-      renderSelectorLattice();
-  }
-
-  selectorYAxis.onchange = () => {
-      const newDim = parseInt(selectorYAxis.value);
-      editorNotes.forEach(note => {
-          let yVal = 0;
-          if (note.c !== 0) { yVal = note.c; note.c = 0; }
-          else if (note.d !== 0) { yVal = note.d; note.d = 0; }
-          else if (note.e !== 0) { yVal = note.e; note.e = 0; }
-          if (newDim === 3) note.c = yVal;
-          else if (newDim === 4) note.d = yVal;
-          else if (newDim === 5) note.e = yVal;
-      });
-      syncSeqToRuby();
-      renderSelectorLattice();
-  };
-
-  selectorClearBtn.onclick = () => {
-      editorNotes = [];
-      editorSelectedCell = { x: 0, y: 0 };
-      syncSeqToRuby();
-      renderSelectorLattice();
-  };
-
-  selectorApplyBtn.onclick = () => {
-      if (editorNotes.length === 0) return;
-      applyChordToBlock(editorTrackIdx, editorStartStep, "custom", editorNotes);
-      try { App.call("$midiProcessor", "set_seq_editor_open", false); } catch(_) {}
-      selectorModal.style.display = "none";
-  };
-
-  // --- MELODIC CHORD SELECTOR ---
-  function openChordSelector(trackIdx, startStep) {
-      editorTrackIdx = trackIdx;
-      editorStartStep = startStep;
-
-      // Load existing block notes into editor (if any)
-      editorNotes = [];
-      editorSelectedCell = { x: 0, y: 0 };
-      try {
-          const notesJson = App.call("$sequencer", "get_block_notes_json", trackIdx, startStep).toString();
-          const parsed = JSON.parse(notesJson);
-          if (parsed && parsed.length > 0) {
-              editorNotes = JSON.parse(JSON.stringify(parsed));
-          }
-      } catch(e) {}
-
-      // Infer dimension from loaded notes
-      let inferredDim = 3;
-      if (editorNotes.some(n => n.e !== 0)) inferredDim = 5;
-      else if (editorNotes.some(n => n.d !== 0)) inferredDim = 4;
-      selectorYAxis.value = inferredDim;
-
-      syncSeqToRuby();
-      renderSelectorLattice();
-
-      // Render saved chord list
-      selectorList.innerHTML = "";
-      const chords = getChords();
-      const chordNames = Object.keys(chords);
-      if (chordNames.length === 0) {
-          selectorList.innerHTML = "<div style='grid-column: 1/-1; text-align: center; color: #aaa; padding: 20px;'>No saved chords. Use the editor above or create chords in the Chord tab.</div>";
-      } else {
-          chordNames.forEach(name => {
-              const entry = chords[name];
-              const isLegacy = Array.isArray(entry);
-              const notes = isLegacy ? entry : entry.notes;
-              const dim = isLegacy ? null : entry.dimension;
-
-              const item = document.createElement("div");
-              item.style.background = "#444";
-              item.style.padding = "5px";
-              item.style.borderRadius = "4px";
-              item.style.cursor = "pointer";
-              item.style.textAlign = "center";
-              item.setAttribute("data-chord", name);
-
-              const cvs = document.createElement("canvas");
-              cvs.width = 80; cvs.height = 80;
-              drawTetrisShape(cvs.getContext("2d"), notes, 80, 80, dim);
-
-              const lbl = document.createElement("div");
-              lbl.textContent = name;
-              lbl.style.marginTop = "5px";
-              lbl.style.fontSize = "0.9rem";
-
-              item.appendChild(cvs);
-              item.appendChild(lbl);
-
-              // Load into editor instead of immediately applying
-              item.onclick = () => {
-                  editorNotes = JSON.parse(JSON.stringify(notes));
-                  editorSelectedCell = { x: 0, y: 0 };
-                  if (dim) {
-                      selectorYAxis.value = dim;
-                  } else {
-                      let inferred = 3;
-                      if (notes.some(n => n.e !== 0)) inferred = 5;
-                      else if (notes.some(n => n.d !== 0)) inferred = 4;
-                      selectorYAxis.value = inferred;
-                  }
-                  syncSeqToRuby();
-                  renderSelectorLattice();
-                  // Highlight selected chord item
-                  selectorList.querySelectorAll("[data-chord]").forEach(el => el.style.outline = "none");
-                  item.style.outline = "2px solid #28a745";
-              };
-
-              selectorList.appendChild(item);
-          });
-      }
-      try { App.call("$midiProcessor", "set_seq_editor_open", true); } catch(_) {}
-      selectorModal.style.display = "flex";
-  }
-  selectorClose.onclick = () => {
-    try { App.call("$midiProcessor", "set_seq_editor_open", false); } catch(_) {}
-    selectorModal.style.display = "none";
-  };
-
-  function applyChordToBlock(t, s, name, notes) {
-      const len = notes.length;
-      const totalFloats = len * 5;
-      let buffer;
-      if (window.crossOriginIsolated && window.SharedArrayBuffer) {
-          buffer = new SharedArrayBuffer(totalFloats * 4);
-      } else {
-          buffer = new ArrayBuffer(totalFloats * 4);
-      }
-      const floatView = new Float32Array(buffer);
-      for(let i = 0; i < len; i++) {
-          floatView[i * 5 + 0] = notes[i].a;
-          floatView[i * 5 + 1] = notes[i].b;
-          floatView[i * 5 + 2] = notes[i].c;
-          floatView[i * 5 + 3] = notes[i].d;
-          floatView[i * 5 + 4] = notes[i].e;
-      }
-      window._tempChordBuffer = floatView;
-      // Use App.eval but pass arguments via JS.global to avoid interpolation while keeping Float32Array intact.
-      window._tempArgs = [t, s, floatView];
-      App.eval(`$sequencer.set_block_notes_from_buffer(*JS.global[:_tempArgs].to_a)`, "UpdateBlockNotesBuffer");
-      delete window._tempArgs;
-
-      App.call("$sequencer", "set_block_chord_name", t, s, name);
-      blockElementsCache.delete(`${t}-${s}`);
-      renderSequencer();
-  }
+  // The chord selector modal is implemented as the <chord-selector-modal>
+  // WebComponent (src/chord_selector_modal.rb); openChordSelector at the top
+  // of this function delegates to it via App.call.
 
   // --- RHYTHMIC PATTERN SELECTOR ---
   function openPatternSelector(trackIdx, startStep, currentPatternId) {
@@ -1170,21 +967,5 @@ export function setupSequencer(App) {
     });
   }
 
-  function syncSeqToRuby() {
-    try {
-      App.call("$midiProcessor", "set_seq_notes", JSON.stringify(editorNotes));
-      App.call("$midiProcessor", "set_seq_dimension", parseInt(selectorYAxis.value));
-    } catch(_) {}
-  }
-
-  return {
-    reRenderSeq() {
-      const json = App.call("$midiProcessor", "get_seq_notes_json").toString();
-      editorNotes = JSON.parse(json);
-      renderSelectorLattice();
-    },
-    setSeqDimension(dim) {
-      selectorYAxis.value = dim;
-    }
-  };
+  return {};
 }

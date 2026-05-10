@@ -85,7 +85,8 @@ const main = async () => {
       "src/pattern_editor.rb",
       "src/chord_editor.rb",
       "src/effects_panel.rb",
-      "src/tab_bar.rb"
+      "src/tab_bar.rb",
+      "src/chord_selector_modal.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -213,16 +214,17 @@ const main = async () => {
     loadChords();
     setupUI(App);
     setupVisualizer(App);
-    const seqUI = setupSequencer(App);
     setupPresets(App);
     setupProjectManager(App);
 
     // Register WebComponents (must happen AFTER dependent globals like
-    // $sequencer/$patternSequencer/$midiProcessor are initialized).
+    // $sequencer/$patternSequencer are initialized; $midiProcessor is
+    // initialized just below — the modal handles its absence at open time).
     loadScript('/src/pattern_editor.rb');
     loadScript('/src/chord_editor.rb');
     loadScript('/src/effects_panel.rb');
     loadScript('/src/tab_bar.rb');
+    loadScript('/src/chord_selector_modal.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {
@@ -247,6 +249,17 @@ const main = async () => {
       tabBarHost.appendChild(document.createElement("tab-bar"));
     }
 
+    let chordSelectorRef = null;
+    const chordSelectorHost = document.getElementById("chord-selector-host");
+    if (chordSelectorHost) {
+      const el = document.createElement("chord-selector-modal");
+      chordSelectorHost.appendChild(el);
+      chordSelectorRef = `wc:${el.__rubyId}`;
+    }
+
+    // Sequencer UI must be wired up after the chord-selector-modal exists.
+    setupSequencer(App, { chordSelectorRef });
+
     // Initialize MIDI Processor
     App.eval("$midiProcessor = MIDIProcessor.new($sequencer, $previewSynth, $chordSynth)");
 
@@ -254,8 +267,8 @@ const main = async () => {
     setupMIDI(App, () => ({
       reRenderChord:     () => { if (chordEditorRef) App.call(chordEditorRef, "re_render_chord"); },
       setChordDimension: (d) => { if (chordEditorRef) App.call(chordEditorRef, "set_chord_dimension", d); },
-      reRenderSeq:       () => seqUI.reRenderSeq(),
-      setSeqDimension:   (d) => seqUI.setSeqDimension(d),
+      reRenderSeq:       () => { if (chordSelectorRef) App.call(chordSelectorRef, "re_render_seq"); },
+      setSeqDimension:   (d) => { if (chordSelectorRef) App.call(chordSelectorRef, "set_seq_dimension", d); },
       setSynthDimension: (d) => App.call("$midiProcessor", "set_synth_dimension", d),
     }));
   };

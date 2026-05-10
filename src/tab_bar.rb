@@ -36,7 +36,7 @@ class TabBar
 
     apply_context(tab_id)
 
-    JS.eval("window.dispatchEvent(new Event('effectControllerChanged'))")
+    JS.eval("setTimeout(() => window.dispatchEvent(new Event('effectControllerChanged')), 0)")
 
     begin
       $midiProcessor.set_tab(tab_id) if $midiProcessor
@@ -80,7 +80,7 @@ class TabBar
       refresh_modular_editor
     when "seq"
       $effect_controller = $sequencer.effects_chain
-      JS.eval("window.dispatchEvent(new Event('trackChanged'))")
+      JS.eval("setTimeout(() => window.dispatchEvent(new Event('trackChanged')), 0)")
     when "chord"
       $synth = $chordSynth
       $effect_controller = $chordEffects

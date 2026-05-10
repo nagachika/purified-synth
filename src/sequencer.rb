@@ -284,6 +284,28 @@ class Sequencer
     update_block_notes_buffer(track_index, start_step, buffer)
   end
 
+  # Ruby-friendly variant accepting an array of note hashes ({a,b,c,d,e} keys
+  # may be either strings or symbols, missing keys default to 0).
+  def set_block_notes(track_index, start_step, notes)
+    track = @tracks[track_index.to_i]
+    return unless track
+    return if track.type == :rhythmic
+
+    block = track.blocks.find { |b| b.start_step == start_step.to_i }
+    return unless block
+
+    block.notes.clear
+    notes.each do |n|
+      block.notes << NoteCoord.new(
+        (n["a"] || n[:a] || 0).to_f,
+        (n["b"] || n[:b] || 0).to_f,
+        (n["c"] || n[:c] || 0).to_f,
+        (n["d"] || n[:d] || 0).to_f,
+        (n["e"] || n[:e] || 0).to_f
+      )
+    end
+  end
+
   def add_track
     synth = Synthesizer.new(@ctx)
     # Routing:

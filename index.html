@@ -267,32 +267,8 @@
 
   </div>
 
-  <!-- Modal for Selecting Chords in Sequencer -->
-  <div id="chord-selector-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center;">
-    <div class="panel" style="width: 500px; max-width: 90%; height: 80%; display: flex; flex-direction: column;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #555; padding-bottom: 10px;">
-        <h2 style="margin: 0; border: none; padding: 0;">Edit / Select Chord</h2>
-        <button id="close-chord-selector" style="padding: 5px 10px; background: #dc3545;">Close</button>
-      </div>
-      <div id="selector-editor-section" style="border-bottom: 1px solid #555; padding-bottom: 10px; margin-bottom: 10px;">
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-          <label style="font-size: 0.85rem; color: #ccc;">Y-Axis:</label>
-          <select id="selector-y-axis" style="padding: 2px 4px;">
-            <option value="3">dim3 (5-limit)</option>
-            <option value="4">dim4 (7-limit)</option>
-            <option value="5">dim5 (11-limit)</option>
-          </select>
-          <button id="selector-clear-btn" style="padding: 4px 10px; font-size: 0.8rem; background: #666;">Clear</button>
-          <div style="flex-grow:1;"></div>
-          <button id="selector-apply-btn" style="padding: 6px 16px; background: #28a745; font-weight: bold;">Apply</button>
-        </div>
-        <div id="selector-lattice-grid" style="display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px; max-width: 350px; margin: 0 auto;"></div>
-      </div>
-      <div id="selector-list" style="flex-grow: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px;">
-        <!-- Chord items -->
-      </div>
-    </div>
-  </div>
+  <!-- <chord-selector-modal> WebComponent inserted dynamically from main.js -->
+  <div id="chord-selector-host"></div>
 
   <!-- Modal for Selecting Patterns in Sequencer -->
   <div id="pattern-selector-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center;">
