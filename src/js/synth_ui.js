@@ -691,25 +691,6 @@ class ModularEditor {
 export function setupUI(App) {
   const editor = new ModularEditor("#modular-editor", App);
   window.modularEditor = editor;
-
-  // Effects are still global panels for now
-  const effectIds = [
-    "delay_time", "delay_feedback", "delay_mix",
-    "reverb_seconds", "reverb_mix"
-  ];
-
-  effectIds.forEach(id => {
-    const el = document.getElementById(id);
-    const display = document.getElementById(`val_${id}`);
-    if (el) {
-      el.addEventListener("input", () => {
-        let val = el.value;
-        if (id.includes('time') || id.includes('seconds')) val += ' s';
-        if (display) display.textContent = val;
-        // Use $effect_controller for effects, which might be $previewEffects or $sequencer.effects_chain
-        App.call("$effect_controller", `${id}=`, parseFloat(el.value));
-      });
-    }
-  });
+  // Effects sliders are now owned by the <effects-panel> WebComponent.
 }
 

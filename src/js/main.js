@@ -38,94 +38,6 @@ window.App = {
   }
 };
 
-function setupTabs() {  const tabSynth = document.getElementById("tab-synth");
-  const tabSeq = document.getElementById("tab-seq");
-  const tabChord = document.getElementById("tab-chord");
-  const tabPattern = document.getElementById("tab-pattern");
-
-  const viewSynth = document.getElementById("view-synthesizer");
-  const viewSeq = document.getElementById("view-sequencer");
-  const viewChord = document.getElementById("view-chord");
-  const viewPattern = document.getElementById("view-pattern");
-
-  function updateUISliders() {
-    // Read values from current $effect_controller
-    const params = ["delay_time", "delay_feedback", "delay_mix", "reverb_seconds", "reverb_mix"];
-    params.forEach(param => {
-      const val = App.eval(`$effect_controller.${param}`).toJS();
-      const el = document.getElementById(param);
-      const display = document.getElementById(`val_${param}`);
-      if (el) {
-        el.value = val;
-        let displayVal = val;
-        if (param.includes('time') || param.includes('seconds')) displayVal += ' s';
-        if (display) display.textContent = displayVal;
-      }
-    });
-  }
-
-  function switchTab(view) {
-    [tabSynth, tabSeq, tabChord, tabPattern].forEach(t => t && t.classList.remove("active"));
-    [viewSynth, viewSeq, viewChord, viewPattern].forEach(v => v && v.classList.remove("active"));
-
-    if (view === "synth") {
-      tabSynth.classList.add("active");
-      viewSynth.classList.add("active");
-
-      // Switch to Preview Synth context
-      App.eval("$synth = $previewSynth");
-      App.eval("$effect_controller = $previewEffects");
-      window.synthAnalyser = App.eval("$previewAnalyser.native_node").toJS();
-
-      updateUISliders();
-
-      // Refresh Modular Editor Patch
-      const patchJson = App.eval("$synth.export_patch").toJS();
-      if (window.modularEditor && patchJson) {
-         window.modularEditor.loadPatch(JSON.parse(patchJson));
-      }
-
-    } else if (view === "seq") {
-      tabSeq.classList.add("active");
-      viewSeq.classList.add("active");
-
-      // Switch to Sequencer context
-      App.eval("$effect_controller = $sequencer.effects_chain");
-
-      updateUISliders();
-      window.dispatchEvent(new Event("trackChanged"));
-
-    } else if (view === "chord") {
-      tabChord.classList.add("active");
-      viewChord.classList.add("active");
-
-      // Switch to Chord Synth context
-      App.eval("$synth = $chordSynth");
-      App.eval("$effect_controller = $chordEffects");
-      // Use preview analyser for chord view visualization too? Or maybe none?
-      // For now, let's just stick with preview analyser if we want visualization,
-      // but chords go to a different destination.
-
-      updateUISliders();
-
-      // Refresh Modular Editor Patch
-      const patchJson = App.eval("$synth.export_patch").toJS();
-      if (window.modularEditor && patchJson) {
-         window.modularEditor.loadPatch(JSON.parse(patchJson));
-      }
-
-    } else if (view === "pattern") {
-      tabPattern.classList.add("active");
-      viewPattern.classList.add("active");
-    }
-  }
-
-  tabSynth.onclick = () => { switchTab("synth"); try { App.call("$midiProcessor", "set_tab", "synth"); } catch(_) {} };
-  tabSeq.onclick = () => { switchTab("seq"); try { App.call("$midiProcessor", "set_tab", "seq"); } catch(_) {} };
-  tabChord.onclick = () => { switchTab("chord"); try { App.call("$midiProcessor", "set_tab", "chord"); } catch(_) {} };
-  if (tabPattern) tabPattern.onclick = () => { switchTab("pattern"); try { App.call("$midiProcessor", "set_tab", "pattern"); } catch(_) {} };
-}
-
 const main = async () => {
   // Pre-load Ruby VM
   const response = await fetch("https://cdn.jsdelivr.net/npm/@ruby/3.3-wasm-wasi@2.8.1/dist/ruby+stdlib.wasm");
@@ -171,7 +83,9 @@ const main = async () => {
       "src/chord_manager.rb",
       "src/presets.rb",
       "src/pattern_editor.rb",
-      "src/chord_editor.rb"
+      "src/chord_editor.rb",
+      "src/effects_panel.rb",
+      "src/tab_bar.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -297,7 +211,6 @@ const main = async () => {
     console.log("Initialized");
 
     loadChords();
-    setupTabs();
     setupUI(App);
     setupVisualizer(App);
     const seqUI = setupSequencer(App);
@@ -308,6 +221,8 @@ const main = async () => {
     // $sequencer/$patternSequencer/$midiProcessor are initialized).
     loadScript('/src/pattern_editor.rb');
     loadScript('/src/chord_editor.rb');
+    loadScript('/src/effects_panel.rb');
+    loadScript('/src/tab_bar.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {
@@ -320,6 +235,16 @@ const main = async () => {
       const chordEditorEl = document.createElement("chord-editor");
       chordView.appendChild(chordEditorEl);
       chordEditorRef = `wc:${chordEditorEl.__rubyId}`;
+    }
+
+    const effectsHost = document.getElementById("effects-panel-host");
+    if (effectsHost) {
+      effectsHost.appendChild(document.createElement("effects-panel"));
+    }
+
+    const tabBarHost = document.getElementById("tab-bar-host");
+    if (tabBarHost) {
+      tabBarHost.appendChild(document.createElement("tab-bar"));
     }
 
     // Initialize MIDI Processor
