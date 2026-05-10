@@ -6,7 +6,6 @@ import { setupSequencer } from "./sequencer_ui.js";
 import { setupUI } from "./synth_ui.js";
 import { setupMIDI } from "./midi_handler.js";
 import { setupVisualizer } from "./visualizer.js";
-import { setupPatternEditor } from "./pattern_editor.js";
 import { setupProjectManager } from "./project_manager.js";
 
 const startBtn = document.getElementById("start-btn");
@@ -171,7 +170,8 @@ const main = async () => {
       "src/js_bridge.rb",
       "src/web_component.rb",
       "src/chord_manager.rb",
-      "src/presets.rb"
+      "src/presets.rb",
+      "src/pattern_editor.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -303,8 +303,19 @@ const main = async () => {
     const seqUI = setupSequencer(App);
     setupPresets(App);
     const chordUI = setupChordView(App);
-    setupPatternEditor(App);
     setupProjectManager(App);
+
+    // Register PatternEditor WebComponent and insert it (must happen AFTER
+    // dependent globals like $sequencer/$patternSequencer are initialized).
+    loadScript('/src/pattern_editor.rb');
+    {
+      const patternView = document.getElementById("view-pattern");
+      if (patternView) {
+        const el = document.createElement("pattern-editor");
+        el.style.display = "none"; // host element is invisible; logic operates on existing DOM
+        patternView.appendChild(el);
+      }
+    }
 
     // Initialize MIDI Processor
     App.eval("$midiProcessor = MIDIProcessor.new($sequencer, $previewSynth, $chordSynth)");
