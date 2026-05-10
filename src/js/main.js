@@ -168,7 +168,8 @@ const main = async () => {
       "src/effects_chain.rb",
       "src/sequencer.rb",
       "src/midi_processor.rb",
-      "src/js_bridge.rb"
+      "src/js_bridge.rb",
+      "src/web_component.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -239,6 +240,11 @@ const main = async () => {
     loadScript('/src/sequencer.rb');
     loadScript('/src/midi_processor.rb');
     loadScript('/src/js_bridge.rb');
+
+    // WebComponent base mixin (subclasses are required after this and
+    // their register() is called at require time; matching custom elements
+    // must NOT be in the DOM at that point — insert them only after require)
+    loadScript('/src/web_component.rb');
 
     // Init Sequencer & Synth
     App.eval("$sequencer = Sequencer.new($ctx, name: '$sequencer')");
