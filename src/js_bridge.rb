@@ -11,6 +11,8 @@ def js_bridge_dispatch(target_name, method_name, json_args)
            when '$chordSynth'       then $chordSynth
            when '$effect_controller' then $effect_controller
            when '$midiProcessor'    then $midiProcessor
+           when '$chordManager'     then $chordManager
+           when '$presets'          then $presets
            else
              puts "[Bridge Error] Unknown target: #{target_name}"
              return nil

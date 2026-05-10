@@ -1,34 +1,45 @@
-const CHORD_STORAGE_KEY = "ruby_synth_chords";
-let chords = {};
+// Thin wrappers around Ruby-side $chordManager (source of truth in localStorage).
+// Cache stays in sync after each mutation so synchronous getChords() callers don't
+// pay a Ruby round-trip on every read.
+let chordsCache = null;
+
+function refreshCache() {
+  try {
+    const json = window.App.call("$chordManager", "get_chords").toString();
+    chordsCache = JSON.parse(json);
+  } catch (e) {
+    console.error(e);
+    chordsCache = {};
+  }
+}
 
 export function getChords() {
-    return chords;
+  if (chordsCache === null) refreshCache();
+  return chordsCache;
 }
 
 export function loadChords() {
-  try {
-    const raw = localStorage.getItem(CHORD_STORAGE_KEY);
-    chords = raw ? JSON.parse(raw) : {};
-  } catch(e) { console.error(e); chords = {}; }
-  return chords;
+  refreshCache();
+  return chordsCache;
 }
 
 export function saveChords() {
-  localStorage.setItem(CHORD_STORAGE_KEY, JSON.stringify(chords));
+  window.App.call("$chordManager", "set_chords", chordsCache);
 }
 
 export function updateChord(name, data) {
-    chords[name] = JSON.parse(JSON.stringify(data));
-    saveChords();
+  const copy = JSON.parse(JSON.stringify(data));
+  chordsCache[name] = copy;
+  window.App.call("$chordManager", "update_chord", name, copy);
 }
 
 export function deleteChord(name) {
-    delete chords[name];
-    saveChords();
+  delete chordsCache[name];
+  window.App.call("$chordManager", "delete_chord", name);
 }
 
 export function setChords(newChords) {
-    chords = newChords || {};
-    saveChords();
-    window.dispatchEvent(new Event("chordsUpdated"));
+  chordsCache = newChords || {};
+  window.App.call("$chordManager", "set_chords", chordsCache);
+  window.dispatchEvent(new Event("chordsUpdated"));
 }

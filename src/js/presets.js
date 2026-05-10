@@ -1,21 +1,35 @@
-const STORAGE_KEY = "ruby_synth_presets";
+// Thin wrappers around Ruby-side $presets (source of truth in localStorage).
+// Cache stays in sync after each mutation so synchronous getPresets() callers don't
+// pay a Ruby round-trip on every read.
+let presetsCache = null;
 
-export function getPresets() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+function refreshCache() {
+  try {
+    const json = window.App.call("$presets", "get_presets").toString();
+    presetsCache = JSON.parse(json);
+  } catch (e) {
+    console.error(e);
+    presetsCache = {};
+  }
 }
 
-// Expose to window for other modules/Ruby if needed, though mostly other JS modules need it.
+export function getPresets() {
+  if (presetsCache === null) refreshCache();
+  return presetsCache;
+}
+
 window.getPresets = getPresets;
 
 export function setPresets(newPresets) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newPresets));
-    window.dispatchEvent(new Event("presetsUpdated"));
+  presetsCache = newPresets || {};
+  window.App.call("$presets", "set_presets", presetsCache);
+  window.dispatchEvent(new Event("presetsUpdated"));
 }
 
 function savePresets(presets) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(presets));
-    window.dispatchEvent(new Event("presetsUpdated"));
+  presetsCache = presets;
+  window.App.call("$presets", "set_presets", presets);
+  window.dispatchEvent(new Event("presetsUpdated"));
 }
 
 export function updateUIFromSettings(json) {

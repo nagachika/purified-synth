@@ -169,7 +169,9 @@ const main = async () => {
       "src/sequencer.rb",
       "src/midi_processor.rb",
       "src/js_bridge.rb",
-      "src/web_component.rb"
+      "src/web_component.rb",
+      "src/chord_manager.rb",
+      "src/presets.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -245,6 +247,12 @@ const main = async () => {
     // their register() is called at require time; matching custom elements
     // must NOT be in the DOM at that point — insert them only after require)
     loadScript('/src/web_component.rb');
+
+    // Data layer (localStorage-backed)
+    loadScript('/src/chord_manager.rb');
+    loadScript('/src/presets.rb');
+    App.eval("$chordManager = ChordManager.new");
+    App.eval("$presets = Presets.new");
 
     // Init Sequencer & Synth
     App.eval("$sequencer = Sequencer.new($ctx, name: '$sequencer')");
