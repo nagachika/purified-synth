@@ -1,6 +1,5 @@
 import { DefaultRubyVM } from "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.8.1/dist/esm/browser.js";
 import { loadChords } from "./chord_manager.js";
-import { setupChordView } from "./chord_view.js";
 import { setupPresets } from "./presets.js";
 import { setupSequencer } from "./sequencer_ui.js";
 import { setupUI } from "./synth_ui.js";
@@ -171,7 +170,8 @@ const main = async () => {
       "src/web_component.rb",
       "src/chord_manager.rb",
       "src/presets.rb",
-      "src/pattern_editor.rb"
+      "src/pattern_editor.rb",
+      "src/chord_editor.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -302,17 +302,24 @@ const main = async () => {
     setupVisualizer(App);
     const seqUI = setupSequencer(App);
     setupPresets(App);
-    const chordUI = setupChordView(App);
     setupProjectManager(App);
 
-    // Register PatternEditor WebComponent and insert it (must happen AFTER
-    // dependent globals like $sequencer/$patternSequencer are initialized).
+    // Register WebComponents (must happen AFTER dependent globals like
+    // $sequencer/$patternSequencer/$midiProcessor are initialized).
     loadScript('/src/pattern_editor.rb');
-    {
-      const patternView = document.getElementById("view-pattern");
-      if (patternView) {
-        patternView.appendChild(document.createElement("pattern-editor"));
-      }
+    loadScript('/src/chord_editor.rb');
+
+    const patternView = document.getElementById("view-pattern");
+    if (patternView) {
+      patternView.appendChild(document.createElement("pattern-editor"));
+    }
+
+    const chordView = document.getElementById("view-chord");
+    let chordEditorRef = null;
+    if (chordView) {
+      const chordEditorEl = document.createElement("chord-editor");
+      chordView.appendChild(chordEditorEl);
+      chordEditorRef = `wc:${chordEditorEl.__rubyId}`;
     }
 
     // Initialize MIDI Processor
@@ -320,8 +327,8 @@ const main = async () => {
 
     // Setup Web MIDI API
     setupMIDI(App, () => ({
-      reRenderChord:     () => chordUI.reRenderChord(),
-      setChordDimension: (d) => chordUI.setChordDimension(d),
+      reRenderChord:     () => { if (chordEditorRef) App.call(chordEditorRef, "re_render_chord"); },
+      setChordDimension: (d) => { if (chordEditorRef) App.call(chordEditorRef, "set_chord_dimension", d); },
       reRenderSeq:       () => seqUI.reRenderSeq(),
       setSeqDimension:   (d) => seqUI.setSeqDimension(d),
       setSynthDimension: (d) => App.call("$midiProcessor", "set_synth_dimension", d),

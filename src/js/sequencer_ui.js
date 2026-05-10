@@ -1,7 +1,7 @@
 import { CELL_WIDTH, drawTetrisShape } from "./utils.js";
 import { getChords } from "./chord_manager.js";
 import { getPresets } from "./presets.js";
-import { renderGenericLattice, playPreviewNote } from "./chord_view.js";
+import { renderGenericLattice, playPreviewNote } from "./chord_lattice.js";
 
 // Queue for future playhead updates from Ruby
 const playheadQueue = [];
