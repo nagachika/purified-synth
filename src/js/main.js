@@ -87,7 +87,8 @@ const main = async () => {
       "src/effects_panel.rb",
       "src/tab_bar.rb",
       "src/chord_selector_modal.rb",
-      "src/pattern_selector_modal.rb"
+      "src/pattern_selector_modal.rb",
+      "src/track_controls.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -227,6 +228,7 @@ const main = async () => {
     loadScript('/src/tab_bar.rb');
     loadScript('/src/chord_selector_modal.rb');
     loadScript('/src/pattern_selector_modal.rb');
+    loadScript('/src/track_controls.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {

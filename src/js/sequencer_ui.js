@@ -1,6 +1,4 @@
 import { CELL_WIDTH, drawTetrisShape } from "./utils.js";
-import { getChords } from "./chord_manager.js";
-import { getPresets } from "./presets.js";
 
 // Queue for future playhead updates from Ruby
 const playheadQueue = [];
@@ -41,21 +39,12 @@ export function setupSequencer(App, opts = {}) {
     renderSequencer();
   });
 
-  window.addEventListener("presetsUpdated", () => {
-    const presets = getPresets();
-    trackRowsCache.forEach((cached) => {
-      if (cached.trackType === "melodic") {
-        const currentValue = cached.presetSel.value;
-        cached.presetSel.innerHTML = '<option value="">(Default)</option>';
-        Object.keys(presets).forEach(name => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          cached.presetSel.appendChild(opt);
-        });
-        cached.presetSel.value = currentValue;
-      }
-    });
+  // Refresh after a track-controls action (mute/solo/send/arp/select/remove/add)
+  // dispatches seqTrackChanged. The track-controls component itself listens for
+  // presetsUpdated, so this UI no longer needs to.
+  window.addEventListener("seqTrackChanged", () => {
+    blockElementsCache.clear();
+    renderSequencer();
   });
 
   // Expose queue function to App
@@ -129,14 +118,12 @@ export function setupSequencer(App, opts = {}) {
 
   function renderSequencer() {
     let tracksCount = 0;
-    let currentTrackIndex = 0;
     let totalSteps = 128;
 
     try {
         const tracksCountVal = App.call("$sequencer", "get_tracks_count");
         if (!tracksCountVal) return; // Wait for initialization
         tracksCount = parseInt(tracksCountVal.toString());
-        currentTrackIndex = parseInt(App.call("$sequencer", "current_track_index").toString());
         totalSteps = parseInt(App.call("$sequencer", "total_steps").toString());
     } catch(e) {
         console.error("Error in renderSequencer initialization:", e);
@@ -388,86 +375,9 @@ export function setupSequencer(App, opts = {}) {
             row.style.height = "80px";
             row.style.flexShrink = "0";
 
-            const controlDiv = document.createElement("div");
-            controlDiv.style.display = "flex";
-            controlDiv.style.flexDirection = "column";
-            controlDiv.style.width = "180px";
-            controlDiv.style.flexShrink = "0";
-            controlDiv.style.borderRight = "1px solid #555";
-            controlDiv.style.paddingRight = "10px";
-            controlDiv.style.marginRight = "10px";
-            controlDiv.style.justifyContent = "center";
-            controlDiv.style.gap = "5px";
-
-            const labelBtn = document.createElement("button");
-            labelBtn.style.padding = "4px";
-            labelBtn.style.fontSize = "0.8rem";
-            labelBtn.style.border = "1px solid #555";
-            labelBtn.style.cursor = "pointer";
-            labelBtn.onclick = () => selectTrack(t);
-
-            const presetSel = document.createElement("select");
-            presetSel.style.fontSize = "0.8rem";
-            presetSel.style.padding = "2px";
-            presetSel.style.width = "100%";
-
-            const removeBtn = document.createElement("button");
-            removeBtn.innerHTML = '<span class="material-icons" style="font-size: 1.2rem;">delete</span>';
-            removeBtn.style.padding = "4px";
-            removeBtn.style.background = "#dc3545";
-            removeBtn.style.color = "white";
-            removeBtn.style.border = "none";
-            removeBtn.style.cursor = "pointer";
-            removeBtn.onclick = () => removeTrack(t);
-
-            const muteBtn = document.createElement("button");
-            muteBtn.style.padding = "4px";
-            muteBtn.style.color = "white";
-            muteBtn.style.border = "1px solid #555";
-            muteBtn.style.cursor = "pointer";
-
-            const soloBtn = document.createElement("button");
-            soloBtn.style.padding = "4px";
-            soloBtn.style.border = "1px solid #555";
-            soloBtn.style.cursor = "pointer";
-
-            const sendBtn = document.createElement("button");
-            sendBtn.style.padding = "4px";
-            sendBtn.style.border = "1px solid #555";
-            sendBtn.style.cursor = "pointer";
-            sendBtn.title = "Send to Effects";
-
-            const arpBtn = document.createElement("button");
-            arpBtn.style.padding = "4px";
-            arpBtn.style.border = "1px solid #555";
-
-            const knobContainer = document.createElement("div");
-            knobContainer.style.display = "flex";
-            knobContainer.style.alignItems = "center";
-            knobContainer.style.justifyContent = "center";
-            knobContainer.style.cursor = "ns-resize";
-            knobContainer.title = "Volume";
-            const knobIcon = document.createElement("span");
-            knobIcon.className = "material-icons";
-            knobIcon.textContent = "arrow_circle_up";
-            knobIcon.style.fontSize = "1.5rem";
-            knobIcon.style.color = "#4dabf7";
-            knobContainer.appendChild(knobIcon);
-
-            const btnRow = document.createElement("div");
-            btnRow.style.display = "flex";
-            btnRow.style.gap = "2px";
-            btnRow.appendChild(removeBtn);
-            btnRow.appendChild(muteBtn);
-            btnRow.appendChild(soloBtn);
-            btnRow.appendChild(sendBtn);
-            btnRow.appendChild(arpBtn);
-            btnRow.appendChild(knobContainer);
-
-            controlDiv.appendChild(labelBtn);
-            controlDiv.appendChild(presetSel);
-            controlDiv.appendChild(btnRow);
-            row.appendChild(controlDiv);
+            const tc = document.createElement("track-controls");
+            tc.setAttribute("track-index", String(t));
+            row.appendChild(tc);
 
             const timelineWrapper = document.createElement("div");
             timelineWrapper.className = "timeline-wrapper";
@@ -492,7 +402,9 @@ export function setupSequencer(App, opts = {}) {
             playhead.className = "playhead-cursor";
             grid.appendChild(playhead);
 
-            // Insert before the scroll row if it exists, or just append
+            // Insert before the scroll row if it exists, or just append.
+            // Note: <track-controls> connectedCallback only fires once `row`
+            // enters the DOM, so we must read tc.__rubyId AFTER insertion.
             const scrollRowEl = document.getElementById("sequencer-scroll-row");
             if (scrollRowEl) {
                 rowsContainer.insertBefore(row, scrollRowEl);
@@ -500,160 +412,15 @@ export function setupSequencer(App, opts = {}) {
                 rowsContainer.appendChild(row);
             }
 
-            cached = {
-                row, controlDiv, grid, labelBtn, presetSel, muteBtn, soloBtn, sendBtn, arpBtn, knobIcon, knobContainer, playhead, trackType: null
-            };
+            const tcRef = `wc:${tc.__rubyId}`;
+            cached = { row, tc, tcRef, grid, playhead };
             trackRowsCache.set(t, cached);
         }
 
-        // Update Track Content & State
-        const row = cached.row;
         const grid = cached.grid;
 
-        // Type-specific UI update
-        if (cached.trackType !== trackType) {
-            cached.labelBtn.textContent = (trackType === "rhythmic" ? "🥁 " : "🎹 ") + `Track ${t + 1}`;
-            if (trackType === "melodic") {
-                const presets = getPresets();
-                cached.presetSel.disabled = false;
-                cached.presetSel.innerHTML = '<option value="">(Default)</option>';
-                Object.keys(presets).forEach(name => {
-                    const opt = document.createElement("option");
-                    opt.value = name;
-                    opt.textContent = name;
-                    cached.presetSel.appendChild(opt);
-                });
-                if (!cached._presetListenersAttached) {
-                    cached.presetSel.addEventListener("mousedown", () => {
-                        cached.presetSel._presetOpen = true;
-                        cached.presetSel._prevValue = cached.presetSel.value;
-                    });
-                    cached.presetSel.addEventListener("change", (e) => {
-                        cached.presetSel._presetOpen = false;
-                        const name = e.target.value;
-                        if (name) {
-                            const freshPresets = getPresets();
-                            if (freshPresets[name]) {
-                                App.call("$sequencer", "import_track_patch", t, freshPresets[name]);
-                                App.call("$sequencer", "set_track_preset_name", t, name);
-                            }
-                        } else {
-                            const patchJson = App.eval("$previewSynth.export_patch").toJS();
-                            App.call("$sequencer", "import_track_patch", t, patchJson);
-                            App.call("$sequencer", "set_track_preset_name", t, "");
-                        }
-                    });
-                    cached.presetSel.addEventListener("blur", () => {
-                        if (cached.presetSel._presetOpen) {
-                            cached.presetSel._presetOpen = false;
-                            const prev = cached.presetSel._prevValue;
-                            const curr = cached.presetSel.value;
-                            if (prev === curr && prev !== "") {
-                                const freshPresets = getPresets();
-                                if (freshPresets[prev]) {
-                                    App.call("$sequencer", "import_track_patch", t, freshPresets[prev]);
-                                    App.call("$sequencer", "set_track_preset_name", t, prev);
-                                }
-                            } else if (prev === curr && prev === "") {
-                                const patchJson = App.eval("$previewSynth.export_patch").toJS();
-                                App.call("$sequencer", "import_track_patch", t, patchJson);
-                                App.call("$sequencer", "set_track_preset_name", t, "");
-                            }
-                        }
-                    });
-                    cached._presetListenersAttached = true;
-                }
-                cached.arpBtn.style.cursor = "pointer";
-                cached.arpBtn.style.opacity = "1";
-                cached.arpBtn.title = "Arpeggiator ON/OFF";
-            } else {
-                cached.presetSel.disabled = true;
-                cached.presetSel.innerHTML = '<option>Drum Kit</option>';
-                cached.arpBtn.style.cursor = "default";
-                cached.arpBtn.style.opacity = "0.3";
-                cached.arpBtn.title = "";
-            }
-            cached.trackType = trackType;
-        }
-
-        // Selection
-        if (t === currentTrackIndex) {
-            cached.labelBtn.style.background = "#007bff";
-            cached.labelBtn.style.color = "white";
-        } else {
-            cached.labelBtn.style.background = "#333";
-            cached.labelBtn.style.color = "#ccc";
-        }
-
-        // Preset Value (skip while dropdown is open to avoid overriding user interaction)
-        if (trackType === "melodic" && !cached.presetSel._presetOpen) {
-            cached.presetSel.value = App.call("$sequencer", "get_track_preset_name", t).toString();
-        }
-
-        // Mute/Solo
-        let isMuted = App.call("$sequencer", "get_track_mute", t).toString() === "true";
-        let isSolo = App.call("$sequencer", "get_track_solo", t).toString() === "true";
-        let isSend = App.call("$sequencer", "get_track_send", t).toString() === "true";
-
-        cached.muteBtn.innerHTML = `<span class="material-icons" style="font-size: 1.2rem;">${isMuted ? "volume_off" : "volume_up"}</span>`;
-        cached.muteBtn.style.background = isMuted ? "#6c757d" : "#444";
-        cached.muteBtn.onclick = () => {
-            App.call("$sequencer", "set_track_mute", t, !isMuted);
-            renderSequencer();
-        };
-
-        cached.soloBtn.innerHTML = `<span class="material-icons" style="font-size: 1.2rem;">${isSolo ? "grade" : "star_outline"}</span>`;
-        cached.soloBtn.style.background = isSolo ? "#fcc419" : "#444";
-        cached.soloBtn.style.color = isSolo ? "black" : "white";
-        cached.soloBtn.onclick = () => {
-            App.call("$sequencer", "set_track_solo", t, !isSolo);
-            renderSequencer();
-        };
-
-        cached.sendBtn.innerHTML = `<span class="material-icons" style="font-size: 1.2rem;">${isSend ? "blur_on" : "blur_off"}</span>`;
-        cached.sendBtn.style.background = isSend ? "#be4bdb" : "#444";
-        cached.sendBtn.style.color = isSend ? "white" : "#ccc";
-        cached.sendBtn.onclick = () => {
-            App.call("$sequencer", "set_track_send", t, !isSend);
-            renderSequencer();
-        };
-
-        // Arp
-        if (trackType === "melodic") {
-            let isArp = App.call("$sequencer", "get_arpeggiator_status", t).toString() === "true";
-            cached.arpBtn.innerHTML = `<span class="material-icons" style="font-size: 1.2rem;">${isArp ? "clear_all" : "dehaze"}</span>`;
-            cached.arpBtn.style.background = isArp ? "#4dabf7" : "#444";
-            cached.arpBtn.style.color = isArp ? "white" : "#ccc";
-            cached.arpBtn.onclick = () => {
-                App.call("$sequencer", "set_arpeggiator_enabled", t, !isArp);
-                renderSequencer();
-            };
-        } else {
-            cached.arpBtn.innerHTML = `<span class="material-icons" style="font-size: 1.2rem;">dehaze</span>`;
-            cached.arpBtn.style.background = "#222";
-            cached.arpBtn.style.color = "#555";
-            cached.arpBtn.onclick = null;
-        }
-
-        // Volume
-        let currentVol = parseFloat(App.call("$sequencer", "get_track_volume", t).toString());
-        cached.knobIcon.style.transform = `rotate(${(currentVol - 1.0) * 160}deg)`;
-        cached.knobContainer.onmousedown = (e) => {
-            const startY = e.clientY;
-            const startVol = currentVol;
-            const onMove = (me) => {
-                let nv = startVol + (startY - me.clientY) / 100;
-                if(nv < 0) nv = 0; if(nv > 2) nv = 2;
-                App.call("$sequencer", "set_track_volume", t, nv);
-                cached.knobIcon.style.transform = `rotate(${(nv - 1.0) * 160}deg)`;
-            };
-            const onUp = () => {
-                window.removeEventListener("mousemove", onMove);
-                window.removeEventListener("mouseup", onUp);
-            };
-            window.addEventListener("mousemove", onMove);
-            window.addEventListener("mouseup", onUp);
-        };
+        // Delegate all control state updates to the <track-controls> component.
+        try { App.call(cached.tcRef, "refresh"); } catch(e) { console.error(e); }
 
         // Grid Background & Width
         grid.style.width = `${totalSteps * CELL_WIDTH}px`;
@@ -796,17 +563,6 @@ export function setupSequencer(App, opts = {}) {
     setTimeout(() => { if(window._lastScrollLeft) scrollContainer.scrollLeft = window._lastScrollLeft; }, 0);
   } // end renderSequencer
 
-  function selectTrack(t) {
-      App.call("$sequencer", "select_track", t);
-      renderSequencer();
-  }
-
-  function removeTrack(t) {
-      if(confirm(`Remove Track ${t+1}?`)) {
-          App.call("$sequencer", "remove_track", t);
-          renderSequencer();
-      }
-  }
 
   // The chord selector modal is implemented as the <chord-selector-modal>
   // WebComponent (src/chord_selector_modal.rb); openChordSelector at the top
