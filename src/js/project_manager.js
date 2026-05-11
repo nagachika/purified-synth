@@ -54,7 +54,9 @@ export function setupProjectManager(App) {
             App.call("$sequencer", "deserialize_project", JSON.stringify(project.sequencer));
         }
 
-        // Trigger updates
+        // Force a full re-render of the sequencer so cached track rows and
+        // block elements don't linger past the project swap.
+        window.dispatchEvent(new Event("projectLoaded"));
         window.dispatchEvent(new Event("trackChanged"));
         
         alert("Project loaded successfully!");

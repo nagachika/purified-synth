@@ -88,7 +88,8 @@ const main = async () => {
       "src/tab_bar.rb",
       "src/chord_selector_modal.rb",
       "src/pattern_selector_modal.rb",
-      "src/track_controls.rb"
+      "src/track_controls.rb",
+      "src/sequencer_controls.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -229,6 +230,7 @@ const main = async () => {
     loadScript('/src/chord_selector_modal.rb');
     loadScript('/src/pattern_selector_modal.rb');
     loadScript('/src/track_controls.rb');
+    loadScript('/src/sequencer_controls.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {
@@ -267,6 +269,11 @@ const main = async () => {
       const el = document.createElement("pattern-selector-modal");
       patternSelectorHost.appendChild(el);
       patternSelectorRef = `wc:${el.__rubyId}`;
+    }
+
+    const sequencerControlsHost = document.getElementById("sequencer-controls-host");
+    if (sequencerControlsHost) {
+      sequencerControlsHost.appendChild(document.createElement("sequencer-controls"));
     }
 
     // Sequencer UI must be wired up after the selector modals exist.

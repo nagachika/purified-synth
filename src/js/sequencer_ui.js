@@ -14,15 +14,6 @@ export function setupSequencer(App, opts = {}) {
     if (patternSelectorRef) App.call(patternSelectorRef, "open", t, s, currentPatternId || "");
   };
   const rowsContainer = document.getElementById("sequencer-rows");
-  const playBtn = document.getElementById("seq-play-btn");
-  const addTrackBtn = document.getElementById("add_track_btn");
-  const addRhythmTrackBtn = document.getElementById("add_rhythm_track_btn");
-  const bpmInput = document.getElementById("bpm");
-  const bpmDisplay = document.getElementById("val_bpm");
-  const measuresInput = document.getElementById("measures");
-  const measuresDisplay = document.getElementById("val_measures");
-  const rootFreqInput = document.getElementById("root_freq");
-  const swingInput = document.getElementById("swing_amount");
 
   let isDrawing = false;
   let drawStartStep = 0;
@@ -45,6 +36,14 @@ export function setupSequencer(App, opts = {}) {
   window.addEventListener("seqTrackChanged", () => {
     blockElementsCache.clear();
     renderSequencer();
+  });
+
+  // Project loading swaps the entire Ruby sequencer state. Drop all cached
+  // rows and blocks so renderSequencer rebuilds from scratch.
+  window.addEventListener("projectLoaded", () => {
+    trackRowsCache.forEach((cached) => cached.row.remove());
+    trackRowsCache.clear();
+    blockElementsCache.clear();
   });
 
   // Expose queue function to App
@@ -81,29 +80,9 @@ export function setupSequencer(App, opts = {}) {
     }
   }
 
-  let _lastIsPlayingUI = null;
-  function updatePlayBtnUI() {
-    if (!playBtn) return;
-    try {
-      const isPlayingVal = App.call("$sequencer", "is_playing");
-      const isPlaying = isPlayingVal && isPlayingVal.toString() === "true";
-      if (isPlaying === _lastIsPlayingUI) return;
-      _lastIsPlayingUI = isPlaying;
-      if (isPlaying) {
-        playBtn.innerHTML = '<span class="material-icons">stop</span> Stop';
-        playBtn.style.background = "#dc3545";
-      } else {
-        playBtn.innerHTML = '<span class="material-icons">play_arrow</span> Play';
-        playBtn.style.background = "#007bff";
-      }
-    } catch (e) {}
-  }
-
   function animate() {
     requestAnimationFrame(animate);
     if (!App.audioCtx || App.audioCtx.state === 'suspended') return;
-
-    updatePlayBtnUI();
 
     const now = App.audioCtx.currentTime;
 
@@ -130,29 +109,9 @@ export function setupSequencer(App, opts = {}) {
         return;
     }
 
-    // Sync global controls with Ruby state (e.g. after project load)
-    try {
-        const bars = Math.max(1, Math.floor(totalSteps / 32));
-        if (measuresInput && parseInt(measuresInput.value) !== bars) {
-            measuresInput.value = bars;
-            if (measuresDisplay) measuresDisplay.textContent = bars;
-        }
-        const bpmVal = parseInt(App.call("$sequencer", "bpm").toString());
-        if (bpmInput && parseInt(bpmInput.value) !== bpmVal) {
-            bpmInput.value = bpmVal;
-            if (bpmDisplay) bpmDisplay.textContent = bpmVal;
-        }
-        const swingVal = parseFloat(App.call("$sequencer", "swing_amount").toString());
-        if (swingInput && parseFloat(swingInput.value) !== swingVal) {
-            swingInput.value = swingVal;
-            const sd = document.getElementById("val_swing");
-            if (sd) sd.textContent = Math.round(swingVal * 100);
-        }
-        const rootVal = parseFloat(App.call("$sequencer", "root_freq").toString());
-        if (rootFreqInput && parseFloat(rootFreqInput.value) !== rootVal) {
-            rootFreqInput.value = rootVal;
-        }
-    } catch(e) { /* ignore sync errors */ }
+    // Global controls (BPM/Measures/Swing/RootFreq) are synced by the
+    // <sequencer-controls> WebComponent on the seqTrackChanged / trackChanged
+    // events that this UI dispatches.
 
     // Ensure master scroll container exists
     let scrollContainer = document.getElementById("master-scroll-container");
@@ -605,68 +564,8 @@ export function setupSequencer(App, opts = {}) {
     drawTrackIndex = -1;
   });
 
-  addTrackBtn.onclick = () => {
-      try {
-          App.call("$sequencer", "add_track");
-          renderSequencer();
-      } catch(e) { console.error(e); }
-  };
-
-  if (addRhythmTrackBtn) {
-      addRhythmTrackBtn.onclick = () => {
-          try {
-              App.call("$sequencer", "add_rhythm_track");
-              renderSequencer();
-          } catch(e) { console.error(e); }
-      };
-  }
-
-  playBtn.onclick = () => {
-    try {
-      const isPlayingVal = App.call("$sequencer", "is_playing");
-      const isPlaying = isPlayingVal && isPlayingVal.toString() === "true";
-      if (isPlaying) {
-        App.call("$sequencer", "stop");
-      } else {
-        App.call("$sequencer", "start");
-      }
-    } catch (e) { console.error("Sequencer play/stop UI error:", e); }
-  };
-  measuresInput.addEventListener("input", () => {
-      if (measuresDisplay) measuresDisplay.textContent = measuresInput.value;
-      try { App.call("$sequencer", "set_total_bars", parseInt(measuresInput.value)); renderSequencer(); } catch(e){}
-  });
-  bpmInput.addEventListener("input", () => {
-      if (bpmDisplay) bpmDisplay.textContent = bpmInput.value;
-      try{App.call("$sequencer", "set_bpm", parseInt(bpmInput.value));}catch(e){}
-  });
-  rootFreqInput.addEventListener("change", () => { try{App.call("$sequencer", "set_root_freq", parseFloat(rootFreqInput.value));}catch(e){} });
-
-  if (swingInput) {
-      swingInput.addEventListener("input", () => {
-          try{
-              App.call("$sequencer", "set_swing_amount", parseFloat(swingInput.value));
-              const display = document.getElementById("val_swing");
-              if (display) display.textContent = Math.round(swingInput.value * 100);
-          }catch(e){}
-      });
-  }
-
   window.addEventListener("trackChanged", renderSequencer);
   renderSequencer();
-
-  // --- Master Volume Slider ---
-  const masterVolumeSlider = document.getElementById("seq-master-volume");
-  const masterVolumeDisplay = document.getElementById("val_seq-master-volume");
-  if (masterVolumeSlider) {
-    masterVolumeSlider.addEventListener("input", () => {
-      const vol = parseFloat(masterVolumeSlider.value);
-      if (masterVolumeDisplay) masterVolumeDisplay.textContent = vol.toFixed(2);
-      try { App.call("$sequencer", "master_volume=", vol); } catch(_) {}
-      try { App.call("$previewSynth", "volume=", vol); } catch(_) {}
-      try { App.call("$chordSynth", "volume=", vol); } catch(_) {}
-    });
-  }
 
   return {};
 }
