@@ -89,7 +89,8 @@ const main = async () => {
       "src/chord_selector_modal.rb",
       "src/pattern_selector_modal.rb",
       "src/track_controls.rb",
-      "src/sequencer_controls.rb"
+      "src/sequencer_controls.rb",
+      "src/sequencer_block.rb"
     ];
 
     for (const file of rubyFiles) {
@@ -231,6 +232,7 @@ const main = async () => {
     loadScript('/src/pattern_selector_modal.rb');
     loadScript('/src/track_controls.rb');
     loadScript('/src/sequencer_controls.rb');
+    loadScript('/src/sequencer_block.rb');
 
     const patternView = document.getElementById("view-pattern");
     if (patternView) {

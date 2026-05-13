@@ -1,4 +1,4 @@
-import { CELL_WIDTH, drawTetrisShape } from "./utils.js";
+import { CELL_WIDTH } from "./utils.js";
 
 // Queue for future playhead updates from Ruby
 const playheadQueue = [];
@@ -24,11 +24,10 @@ export function setupSequencer(App, opts = {}) {
   const trackRowsCache = new Map(); // index -> { row, controlDiv, grid, playhead, ... }
   const blockElementsCache = new Map(); // "trackIdx-startStep" -> { element, dataHash }
 
-  // Refresh after the chord selector modal applies new notes to a block.
-  window.addEventListener("seqBlockUpdated", () => {
-    blockElementsCache.clear();
-    renderSequencer();
-  });
+  // Refresh after a block was added / removed / had its notes replaced.
+  // renderSequencer's per-track cleanup loop relies on cached entries to
+  // detect blocks that no longer exist, so we MUST NOT clear the cache here.
+  window.addEventListener("seqBlockUpdated", renderSequencer);
 
   // Refresh after a track-controls action (mute/solo/send/arp/select/remove/add)
   // dispatches seqTrackChanged. The track-controls component itself listens for
@@ -409,7 +408,7 @@ export function setupSequencer(App, opts = {}) {
             ghostBlock.style.width = `${len * CELL_WIDTH}px`;
         };
 
-        // Sync Blocks
+        // Sync Blocks via <sequencer-block> WebComponents
         try {
             const blocksJson = App.call("$sequencer", "get_track_blocks_json", t).toString();
             const blocks = JSON.parse(blocksJson);
@@ -420,79 +419,30 @@ export function setupSequencer(App, opts = {}) {
                 currentBlockKeys.add(key);
                 const cachedBlock = blockElementsCache.get(key);
 
-                // Simple hash to detect changes (start, length, content-specifics)
+                // Hash compares everything that affects rendering. Recreate the
+                // block only when length or type changes; otherwise reuse and
+                // call refresh() so the Ruby component re-renders content.
                 const dataHash = JSON.stringify({
                     len: b.length,
-                    chord: b.chord_name,
+                    type: trackType,
                     pid: b.pattern_id,
                     notes_count: b.notes_count
                 });
 
-                if (cachedBlock && cachedBlock.dataHash === dataHash) {
-                    // No change
-                    return;
-                }
+                if (cachedBlock && cachedBlock.dataHash === dataHash) return;
 
-                // Update or Create
-                if (cachedBlock) cachedBlock.element.remove();
-
-                const blockDiv = document.createElement("div");
-                blockDiv.className = "block";
-                blockDiv.style.position = "absolute";
-                blockDiv.style.left = `${b.start * CELL_WIDTH}px`;
-                blockDiv.style.width = `${b.length * CELL_WIDTH}px`;
-                blockDiv.style.height = "100%";
-                blockDiv.style.border = "1px solid #fff";
-                blockDiv.style.borderRadius = "4px";
-                blockDiv.style.cursor = "pointer";
-                blockDiv.style.zIndex = "5";
-                blockDiv.style.display = "flex";
-                blockDiv.style.alignItems = "center";
-                blockDiv.style.justifyContent = "center";
-                blockDiv.style.overflow = "hidden";
-
-                if (trackType === "rhythmic") {
-                    blockDiv.style.background = "#ff8787";
-                    const pName = App.call("$sequencer", "get_pattern_name", b.pattern_id).toString();
-                    blockDiv.innerText = pName;
-                    blockDiv.style.color = "black";
-                    blockDiv.style.fontSize = "0.8rem";
-                    blockDiv.style.fontWeight = "bold";
-                    blockDiv.onclick = (e) => {
-                        e.stopPropagation();
-                        openPatternSelector(t, b.start, b.pattern_id);
-                    };
+                if (cachedBlock) {
+                    App.call(cachedBlock.ref, "refresh", b.length, trackType);
+                    cachedBlock.dataHash = dataHash;
                 } else {
-                    blockDiv.style.background = b.notes_count > 0 ? "#4dabf7" : "#555";
-                    blockDiv.title = b.chord_name || `Start: ${b.start}`;
-                    const canvas = document.createElement("canvas");
-                    const cw = b.length * CELL_WIDTH - 4;
-                    const ch = 70;
-                    canvas.width = cw > 0 ? cw : 1;
-                    canvas.height = ch;
-                    canvas.style.display = "block";
-                    try {
-                        const notesJson = App.call("$sequencer", "get_block_notes_json", t, b.start).toString();
-                        const notes = JSON.parse(notesJson);
-                        drawTetrisShape(canvas.getContext("2d"), notes, cw, ch);
-                    } catch(e){}
-                    blockDiv.appendChild(canvas);
-                    blockDiv.onclick = (e) => {
-                        e.stopPropagation();
-                        openChordSelector(t, b.start);
-                    };
+                    const el = document.createElement("sequencer-block");
+                    el.setAttribute("track-index", String(t));
+                    el.setAttribute("start-step", String(b.start));
+                    el.setAttribute("length", String(b.length));
+                    el.setAttribute("track-type", trackType);
+                    grid.appendChild(el);
+                    blockElementsCache.set(key, { element: el, ref: `wc:${el.__rubyId}`, dataHash });
                 }
-
-                blockDiv.oncontextmenu = (e) => {
-                    e.preventDefault();
-                    if(confirm("Delete block?")) {
-                        App.call("$sequencer", "remove_block", t, b.start);
-                        renderSequencer();
-                    }
-                };
-
-                grid.appendChild(blockDiv);
-                blockElementsCache.set(key, { element: blockDiv, dataHash });
             });
 
             // Cleanup removed blocks

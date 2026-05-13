@@ -15,6 +15,12 @@ class PatternSelectorModal
 
     style_host_hidden
     build_dom
+
+    $pattern_selector_modal = self
+  end
+
+  def disconnected_callback
+    $pattern_selector_modal = nil if $pattern_selector_modal.equal?(self)
   end
 
   def open(track_idx, start_step, current_pattern_id)

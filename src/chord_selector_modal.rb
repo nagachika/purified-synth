@@ -22,6 +22,13 @@ class ChordSelectorModal
 
     style_host_hidden
     build_dom
+
+    # Expose globally so other Ruby components (e.g. <sequencer-block>) can call open.
+    $chord_selector_modal = self
+  end
+
+  def disconnected_callback
+    $chord_selector_modal = nil if $chord_selector_modal.equal?(self)
   end
 
   def open(track_idx, start_step)
