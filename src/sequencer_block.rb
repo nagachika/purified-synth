@@ -1,19 +1,16 @@
 require 'js'
 require 'json'
 require 'web_component'
+require 'dimension_colors'
 
 # Single timeline block on the sequencer view. The host element itself is the
 # block div; sequencer_ui.js absolute-positions it within the track grid based
 # on attributes and calls refresh() when length/type/notes change.
 class SequencerBlock
   include WebComponent
+  include DimensionColors
 
   CELL_WIDTH = 10
-
-  DIMENSION_COLORS = {
-    1 => "#ffffff", 2 => "#ff7f50", 3 => "#20b2aa",
-    4 => "#9370db", 5 => "#ffc247", 6 => "#ffd700", 7 => "#cd5c5c"
-  }
 
   def connected_callback(element)
     @element = element

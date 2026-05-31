@@ -80,6 +80,7 @@ const main = async () => {
       "src/midi_processor.rb",
       "src/js_bridge.rb",
       "src/web_component.rb",
+      "src/dimension_colors.rb",
       "src/chord_manager.rb",
       "src/presets.rb",
       "src/pattern_editor.rb",

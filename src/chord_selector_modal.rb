@@ -1,14 +1,11 @@
 require 'js'
 require 'json'
 require 'web_component'
+require 'dimension_colors'
 
 class ChordSelectorModal
   include WebComponent
-
-  DIMENSION_COLORS = {
-    1 => "#ffffff", 2 => "#ff7f50", 3 => "#20b2aa",
-    4 => "#9370db", 5 => "#ffc247", 6 => "#ffd700", 7 => "#cd5c5c"
-  }
+  include DimensionColors
 
   def connected_callback(element)
     @element = element
@@ -317,7 +314,7 @@ class ChordSelectorModal
     (2).downto(-2) do |y|
       (-4).upto(4) do |x|
         cell = create_div(
-          background: "#222", color: "#fff", display: "flex",
+          background: "#524E61", color: "#fff", display: "flex",
           alignItems: "center", justifyContent: "center", aspectRatio: "1 / 1",
           cursor: "pointer", fontSize: "0.8rem", border: "1px solid #333", userSelect: "none"
         )
