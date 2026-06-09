@@ -56,6 +56,12 @@ class Voice
         node = ConstantSourceNode.new(@ctx)
         node.offset.value = n[:params][:offset] if n.dig(:params, :offset)
         @nodes[n[:id]] = node
+      when "Frequency"
+        # Outputs the played note's frequency (Hz) as a DC signal, e.g. to drive
+        # a BiquadFilter's frequency param without going through an Oscillator.
+        node = ConstantSourceNode.new(@ctx)
+        node.offset.value = freq
+        @nodes[n[:id]] = node
       when "ADSR"
         env = ADSREnvelope.new(
           attack: n[:params][:attack] || 0.1,

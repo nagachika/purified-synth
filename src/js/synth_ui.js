@@ -17,6 +17,12 @@ const NODE_TYPES = {
     hasOutput: true,
     hasInput: false
   },
+  Frequency: {
+    initParams: {},
+    inputs: [],
+    hasOutput: true,
+    hasInput: false
+  },
   BiquadFilter: {
     initParams: { type: "lowpass", frequency: 2000, q: 1.0 },
     inputs: ["frequency", "detune", "Q", "gain"],
