@@ -6,7 +6,7 @@ const NODE_TYPES = {
     hasInput: false
   },
   Noise: {
-    initParams: {},
+    initParams: { type: "white" },
     inputs: [],
     hasOutput: true,
     hasInput: false
@@ -188,16 +188,21 @@ class ModularEditor {
       row.append("label").text(param + ": ");
 
       let input;
-      if (param === "type" && (node.type === "Oscillator" || node.type === "BiquadFilter")) {
+      if (param === "type" && (node.type === "Oscillator" || node.type === "BiquadFilter" || node.type === "Noise")) {
          input = row.append("select")
            .on("change", function() {
               node.params[param] = this.value;
               editor.syncToRuby();
            });
 
-         const options = node.type === "Oscillator" ?
-           ["sawtooth", "square", "triangle", "sine"] :
-           ["lowpass", "highpass", "bandpass", "notch", "peaking", "allpass", "lowshelf", "highshelf"];
+         let options;
+         if (node.type === "Oscillator") {
+           options = ["sawtooth", "square", "triangle", "sine"];
+         } else if (node.type === "Noise") {
+           options = ["white", "pink"];
+         } else {
+           options = ["lowpass", "highpass", "bandpass", "notch", "peaking", "allpass", "lowshelf", "highshelf"];
+         }
 
          options.forEach(opt => {
            input.append("option").text(opt).attr("value", opt).property("selected", val === opt);

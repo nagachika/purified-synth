@@ -16,6 +16,7 @@ class Synthesizer
 
     @active_voices = {}
     @noise_buffer = create_noise_buffer
+    @pink_noise_buffer = create_pink_noise_buffer
   end
 
   def build_global_graph
@@ -80,7 +81,59 @@ class Synthesizer
     buffer
   end
 
+  def create_pink_noise_buffer
+    rate = @ctx[:sampleRate].to_f
+    length = (rate * 4).to_i # 4 seconds of noise (longer loop to soften the seam)
+    rows = 16 # Voss-McCartney generators (pink slope down to ~sampleRate/2^16)
+
+    # Voss-McCartney method (McCartney optimization): exactly one of the `rows`
+    # white generators is re-randomized per sample, selected by the trailing-zero
+    # count of an incrementing counter. We keep a running sum, then peak-normalize.
+    JS.eval(<<~JAVASCRIPT)
+      const buffer = window._tempPinkBuffer = window.audioCtx.createBuffer(1, #{length}, window.audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      const ROWS = #{rows};
+      const rowValues = new Float32Array(ROWS);
+      let runningSum = 0;
+      for (let r = 0; r < ROWS; r++) {
+        rowValues[r] = Math.random() * 2 - 1; // zero-mean seed -> negligible DC
+        runningSum += rowValues[r];
+      }
+
+      let counter = 0;
+      let maxAbs = 0;
+      for (let i = 0; i < #{length}; i++) {
+        counter++;
+        // index = number of trailing zero bits in counter, capped at ROWS-1
+        let index = 0;
+        let c = counter;
+        while ((c & 1) === 0 && index < ROWS - 1) {
+          c >>= 1;
+          index++;
+        }
+        const next = Math.random() * 2 - 1;
+        runningSum += next - rowValues[index];
+        rowValues[index] = next;
+
+        data[i] = runningSum;
+        const a = Math.abs(runningSum);
+        if (a > maxAbs) maxAbs = a;
+      }
+
+      // Peak-normalize into [-0.99, 0.99]
+      const scale = maxAbs > 0 ? (0.99 / maxAbs) : 1;
+      for (let i = 0; i < #{length}; i++) {
+        data[i] *= scale;
+      }
+    JAVASCRIPT
+    buffer = JS.global[:_tempPinkBuffer]
+    JS.eval("delete window._tempPinkBuffer")
+    buffer
+  end
+
   attr_reader :noise_buffer
+  attr_reader :pink_noise_buffer
 
   def volume=(val)
     @master_gain.gain.value = val.to_f * 0.5

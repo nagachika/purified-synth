@@ -34,7 +34,8 @@ class Voice
         end
         @nodes[n[:id]] = node
       when "Noise"
-        node = NoiseNode.new(@ctx, @synth.noise_buffer)
+        buffer = n.dig(:params, :type).to_s == "pink" ? @synth.pink_noise_buffer : @synth.noise_buffer
+        node = NoiseNode.new(@ctx, buffer)
         @nodes[n[:id]] = node
       when "BiquadFilter"
         node = BiquadFilterNode.new(@ctx)
