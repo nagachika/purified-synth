@@ -111,12 +111,16 @@ class ChordEditor
     ctrl_grp.call(:appendChild, @y_axis)
     right.call(:appendChild, ctrl_grp)
 
-    # Editor grid
+    # Editor grid. A single delegated mousedown listener serves every cell;
+    # render_lattice_cells re-renders cells without re-binding listeners.
     @grid = create_div(
       display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: "2px",
       background: "#555", padding: "2px", flexGrow: "0", maxWidth: "600px",
       margin: "0 auto", width: "100%"
     )
+    @grid.call(:addEventListener, "mousedown", proc { |e|
+      with_lattice_cell(e) { |ev, cell, x, y| begin_cell_drag(ev, cell, x, y) }
+    })
     right.call(:appendChild, @grid)
 
     hint = @doc.call(:createElement, "p")
@@ -295,7 +299,7 @@ class ChordEditor
   end
 
   def render_editor
-    render_lattice(@grid, @current_chord_notes, @y_axis[:value].to_i, @selected_cell)
+    render_lattice_cells(@grid, @current_chord_notes, @y_axis[:value].to_i, @selected_cell)
   end
 
   def toggle_note(x, y)
@@ -413,52 +417,6 @@ class ChordEditor
   rescue => _
   end
 
-  def render_lattice(container, notes, dim, selected_cell)
-    container[:innerHTML] = ""
-
-    (2).downto(-2) do |y|
-      (-4).upto(4) do |x|
-        cell = create_div(
-          background: "#524E61", color: "#fff", display: "flex",
-          alignItems: "center", justifyContent: "center", aspectRatio: "1 / 1",
-          cursor: "pointer", fontSize: "0.8rem", border: "1px solid #333", userSelect: "none"
-        )
-
-        if selected_cell && selected_cell[:x] == x && selected_cell[:y] == y
-          cell[:style][:borderColor] = "#fff"
-          cell[:style][:boxShadow] = "inset 0 0 0 2px #fff"
-          cell[:style][:zIndex] = "10"
-        end
-
-        note = notes.find { |n| match_note?(n, x, y, dim) }
-
-        if note
-          if x == 0 && y == 0
-            cell[:style][:background] = "#fff"
-            cell[:style][:color] = "#000"
-          elsif y == 0
-            cell[:style][:background] = DIMENSION_COLORS[2]
-          else
-            cell[:style][:background] = DIMENSION_COLORS[dim]
-          end
-
-          a = note["a"] || 0
-          if a > 0
-            cell[:textContent] = "↑#{a}"
-          elsif a < 0
-            cell[:textContent] = "↓#{a.abs}"
-          end
-        end
-
-        cell_x = x
-        cell_y = y
-        cell.call(:addEventListener, "mousedown", proc { |e| begin_cell_drag(e, cell, cell_x, cell_y) })
-
-        container.call(:appendChild, cell)
-      end
-    end
-  end
-
   def begin_cell_drag(event, cell, x, y)
     event.call(:preventDefault)
     dim = @y_axis[:value].to_i
@@ -531,17 +489,6 @@ class ChordEditor
     s[:gap] = "20px"
     s[:height] = "100%"
     s[:width] = "100%"
-  end
-
-  def create_div(**styles)
-    el = @doc.call(:createElement, "div")
-    style(el, **styles) unless styles.empty?
-    el
-  end
-
-  def style(el, **styles)
-    s = el[:style]
-    styles.each { |k, v| s[k] = v }
   end
 
   def install_global_event_listeners

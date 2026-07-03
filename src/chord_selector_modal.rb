@@ -158,10 +158,15 @@ class ChordSelectorModal
 
     editor.call(:appendChild, controls)
 
+    # A single delegated mousedown listener serves every lattice cell;
+    # render_lattice re-renders cells without re-binding listeners.
     @lattice = create_div(
       display: "grid", gridTemplateColumns: "repeat(9, 1fr)", gap: "2px",
       maxWidth: "350px", margin: "0 auto"
     )
+    @lattice.call(:addEventListener, "mousedown", proc { |e|
+      with_lattice_cell(e) { |ev, cell, x, y| begin_drag(ev, cell, x, y) }
+    })
     editor.call(:appendChild, @lattice)
     panel.call(:appendChild, editor)
 
@@ -295,47 +300,7 @@ class ChordSelectorModal
   end
 
   def render_lattice
-    @lattice[:innerHTML] = ""
-    dim = @y_axis[:value].to_i
-
-    (2).downto(-2) do |y|
-      (-4).upto(4) do |x|
-        cell = create_div(
-          background: "#524E61", color: "#fff", display: "flex",
-          alignItems: "center", justifyContent: "center", aspectRatio: "1 / 1",
-          cursor: "pointer", fontSize: "0.8rem", border: "1px solid #333", userSelect: "none"
-        )
-
-        if @editor_selected_cell[:x] == x && @editor_selected_cell[:y] == y
-          cell[:style][:borderColor] = "#fff"
-          cell[:style][:boxShadow] = "inset 0 0 0 2px #fff"
-          cell[:style][:zIndex] = "10"
-        end
-
-        note = @editor_notes.find { |n| match_note?(n, x, y, dim) }
-        if note
-          if x == 0 && y == 0
-            cell[:style][:background] = "#fff"
-            cell[:style][:color] = "#000"
-          elsif y == 0
-            cell[:style][:background] = DIMENSION_COLORS[2]
-          else
-            cell[:style][:background] = DIMENSION_COLORS[dim]
-          end
-          a = note["a"] || 0
-          if a > 0
-            cell[:textContent] = "↑#{a}"
-          elsif a < 0
-            cell[:textContent] = "↓#{a.abs}"
-          end
-        end
-
-        cx = x; cy = y
-        cell.call(:addEventListener, "mousedown", proc { |e| begin_drag(e, cell, cx, cy) })
-
-        @lattice.call(:appendChild, cell)
-      end
-    end
+    render_lattice_cells(@lattice, @editor_notes, @y_axis[:value].to_i, @editor_selected_cell)
   end
 
   def begin_drag(event, cell, x, y)
@@ -430,17 +395,6 @@ class ChordSelectorModal
 
       @list_el.call(:appendChild, item)
     end
-  end
-
-  def create_div(**styles)
-    el = @doc.call(:createElement, "div")
-    style(el, **styles) unless styles.empty?
-    el
-  end
-
-  def style(el, **styles)
-    s = el[:style]
-    styles.each { |k, v| s[k] = v }
   end
 
   ChordSelectorModal.register("chord-selector-modal")
