@@ -227,11 +227,18 @@ class SequencerControls
   end
 
   def install_play_state_polling
-    rid = @element[:__rubyId].to_s
+    rid = @element[:__rubyId].to_i
+    JS.global[:__wcSignal] = @element[:__abort][:signal]
     JS.eval(<<~JS)
-      setInterval(() => {
-        try { App.eval("WebComponent::WC_REGISTRY[#{rid}].update_play_btn_ui"); } catch(_) {}
-      }, 200);
+      (() => {
+        const signal = window.__wcSignal;
+        delete window.__wcSignal;
+        const id = setInterval(() => {
+          if (signal.aborted) { clearInterval(id); return; }
+          try { App.call("wc:#{rid}", "update_play_btn_ui"); } catch(e) {}
+        }, 200);
+        signal.addEventListener('abort', () => clearInterval(id));
+      })();
     JS
   end
 
