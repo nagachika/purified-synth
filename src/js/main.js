@@ -1,6 +1,4 @@
 import { DefaultRubyVM } from "https://cdn.jsdelivr.net/npm/@ruby/wasm-wasi@2.8.1/dist/esm/browser.js";
-import { loadChords } from "./chord_manager.js";
-import { setupPresets } from "./presets.js";
 import { setupSequencer } from "./sequencer_ui.js";
 import { setupUI } from "./synth_ui.js";
 import { setupMIDI } from "./midi_handler.js";
@@ -87,6 +85,7 @@ const main = async () => {
       "src/pattern_editor.rb",
       "src/chord_editor.rb",
       "src/effects_panel.rb",
+      "src/presets_panel.rb",
       "src/tab_bar.rb",
       "src/chord_selector_modal.rb",
       "src/pattern_selector_modal.rb",
@@ -217,10 +216,8 @@ const main = async () => {
 
     console.log("Initialized");
 
-    loadChords();
     setupUI(App);
     setupVisualizer(App);
-    setupPresets(App);
     setupProjectManager(App);
 
     // Register WebComponents (must happen AFTER dependent globals like
@@ -229,6 +226,7 @@ const main = async () => {
     loadScript('/src/pattern_editor.rb');
     loadScript('/src/chord_editor.rb');
     loadScript('/src/effects_panel.rb');
+    loadScript('/src/presets_panel.rb');
     loadScript('/src/tab_bar.rb');
     loadScript('/src/chord_selector_modal.rb');
     loadScript('/src/pattern_selector_modal.rb');
@@ -252,6 +250,11 @@ const main = async () => {
     const effectsHost = document.getElementById("effects-panel-host");
     if (effectsHost) {
       effectsHost.appendChild(document.createElement("effects-panel"));
+    }
+
+    const presetsHost = document.getElementById("presets-panel-host");
+    if (presetsHost) {
+      presetsHost.appendChild(document.createElement("presets-panel"));
     }
 
     const tabBarHost = document.getElementById("tab-bar-host");

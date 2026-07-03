@@ -201,19 +201,8 @@
         </div>
       </div>
 
-      <!-- Presets -->
-      <div class="panel" style="grid-column: 1 / -1;">
-        <h2>Presets (Sound Design)</h2>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-          <input type="text" id="preset_name" placeholder="Preset Name" style="padding: 8px; border-radius: 4px; border: 1px solid #555; background: #222; color: #fff; flex-grow: 1;">
-          <button id="save_preset" style="padding: 8px 15px; background: #28a745;">Save</button>
-          <select id="preset_list" style="padding: 8px; border-radius: 4px; border: 1px solid #555; background: #222; color: #fff; flex-grow: 1; max-width: 200px;">
-            <option value="">-- Select Preset --</option>
-          </select>
-          <button id="load_preset" style="padding: 8px 15px; background: #17a2b8;">Load</button>
-          <button id="delete_preset" style="padding: 8px 15px; background: #dc3545;">Delete</button>
-        </div>
-      </div>
+      <!-- <presets-panel> WebComponent inserted dynamically from main.js -->
+      <div id="presets-panel-host" style="display: contents;"></div>
 
       <!-- Modular Editor -->
       <div id="modular-editor" class="panel" style="grid-column: 1 / -1; height: 600px; padding: 0; overflow: hidden; position: relative;">
