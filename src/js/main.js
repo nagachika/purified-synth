@@ -94,36 +94,44 @@ const main = async () => {
       "src/sequencer_block.rb"
     ];
 
-    for (const file of rubyFiles) {
+    // Fetch all Ruby sources in parallel; only the VFS writes (VM evals)
+    // below have to stay serial.
+    const fileContents = await Promise.all(rubyFiles.map(async (file) => {
       const res = await fetch(`${file}?_=${Date.now()}`);
       if (!res.ok) {
         console.error(`Failed to load ${file}`);
-        continue;
+        return null;
       }
-      const text = await res.text();
+      return { file, text: await res.text() };
+    }));
 
-      // Pass content to Ruby via global variable to avoid escaping issues
-      window._rubyFileContent = text;
+    // Create every needed VFS directory in a single eval.
+    const dirs = [...new Set(
+      fileContents.filter(Boolean)
+        .map(({ file }) => '/' + file.substring(0, file.lastIndexOf('/')))
+        .filter(d => d !== '/')
+    )];
+    window._tempDirs = JSON.stringify(dirs);
+    App.eval(`
+      require 'json'
+      JSON.parse(JS.global[:_tempDirs].to_s).each do |dir|
+        current = ''
+        dir.split('/').reject(&:empty?).each do |part|
+          current = current + '/' + part
+          Dir.mkdir(current) unless Dir.exist?(current)
+        end
+      end
+    `, "DirSetup");
+    delete window._tempDirs;
 
-      // Force absolute path for VFS to ensure it matches $LOAD_PATH
-      const vfsPath = '/' + file;
+    for (const entry of fileContents) {
+      if (!entry) continue;
 
-      // Ensure directory exists
-      const dir = vfsPath.substring(0, vfsPath.lastIndexOf('/'));
-      if (dir) {
-        window._tempDir = dir;
-        App.eval(`
-          parts = JS.global[:_tempDir].to_s.split('/').reject(&:empty?)
-          current = ''
-          parts.each do |part|
-            current = current + '/' + part
-            Dir.mkdir(current) unless Dir.exist?(current)
-          end
-        `, "DirSetup");
-        delete window._tempDir;
-      }
+      // Force absolute path for VFS to ensure it matches $LOAD_PATH.
+      const vfsPath = '/' + entry.file;
 
-      // Write file
+      // Pass content to Ruby via global variables to avoid escaping issues.
+      window._rubyFileContent = entry.text;
       window._tempPath = vfsPath;
       App.eval(`File.write(JS.global[:_tempPath].to_s, JS.global[:_rubyFileContent])`, "FileWrite");
 
