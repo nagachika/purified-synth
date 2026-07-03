@@ -1,14 +1,14 @@
 require 'js'
 require 'json'
 require 'web_component'
-require 'dimension_colors'
+require 'lattice_view'
 
 # Single timeline block on the sequencer view. The host element itself is the
 # block div; sequencer_ui.js absolute-positions it within the track grid based
 # on attributes and calls refresh() when length/type/notes change.
 class SequencerBlock
   include WebComponent
-  include DimensionColors
+  include LatticeView
 
   CELL_WIDTH = 10
 
@@ -116,67 +116,6 @@ class SequencerBlock
     return unless confirmed
     $sequencer.remove_block(@track_idx, @start_step)
     JS.eval("setTimeout(() => window.dispatchEvent(new Event('seqBlockUpdated')), 0)")
-  end
-
-  def draw_tetris_shape(ctx, notes, w, h, dimension)
-    ctx[:fillStyle] = "#222"
-    ctx.call(:fillRect, 0, 0, w, h)
-    return if notes.nil? || notes.empty?
-
-    dim_to_use = dimension
-    if dim_to_use.nil?
-      dim_to_use = 3
-      has5 = notes.any? { |n| (n["e"] || n[:e] || 0) != 0 }
-      has4 = notes.any? { |n| (n["d"] || n[:d] || 0) != 0 }
-      dim_to_use = 5 if has5
-      dim_to_use = 4 if !has5 && has4
-    end
-
-    coords = notes.map do |n|
-      yv = case dim_to_use
-           when 4 then n["d"] || n[:d] || 0
-           when 5 then n["e"] || n[:e] || 0
-           else n["c"] || n[:c] || 0
-           end
-      { x: n["b"] || n[:b] || 0, y: yv }
-    end
-
-    min_x = coords.map { |p| p[:x] }.min
-    max_x = coords.map { |p| p[:x] }.max
-    min_y = coords.map { |p| p[:y] }.min
-    max_y = coords.map { |p| p[:y] }.max
-
-    range_x = max_x - min_x + 1
-    range_y = max_y - min_y + 1
-    cell_size = [w / (range_x + 1.0), h / (range_y + 1.0), 8].min
-    offset_x = (w - range_x * cell_size) / 2.0 - min_x * cell_size
-    offset_y = (h - range_y * cell_size) / 2.0
-
-    coords.each do |p|
-      cx = offset_x + p[:x] * cell_size
-      cy = offset_y + (max_y - p[:y]) * cell_size
-
-      if p[:x] == 0 && p[:y] == 0
-        ctx[:fillStyle] = "#ffffff"
-      elsif p[:y] == 0
-        ctx[:fillStyle] = DIMENSION_COLORS[2]
-      else
-        ctx[:fillStyle] = DIMENSION_COLORS[dim_to_use]
-      end
-
-      if p[:x] == 0 && p[:y] == 0
-        ctx.call(:beginPath)
-        ctx.call(:arc, cx + cell_size / 2.0, cy + cell_size / 2.0, cell_size / 2.0 - 1, 0, Math::PI * 2)
-        ctx.call(:fill)
-        ctx[:strokeStyle] = "white"
-        ctx[:lineWidth] = 1
-        ctx.call(:stroke)
-      else
-        ctx.call(:beginPath)
-        ctx.call(:roundRect, cx + 0.5, cy + 1, cell_size - 1, cell_size - 2, 2)
-        ctx.call(:fill)
-      end
-    end
   end
 
   SequencerBlock.register("sequencer-block")

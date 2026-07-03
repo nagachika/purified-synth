@@ -81,6 +81,7 @@ const main = async () => {
       "src/js_bridge.rb",
       "src/web_component.rb",
       "src/dimension_colors.rb",
+      "src/lattice_view.rb",
       "src/chord_manager.rb",
       "src/presets.rb",
       "src/pattern_editor.rb",
