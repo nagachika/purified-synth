@@ -95,18 +95,19 @@ export function setupSequencer(App, opts = {}) {
   requestAnimationFrame(animate);
 
   function renderSequencer() {
-    let tracksCount = 0;
-    let totalSteps = 128;
-
+    // One bridge call fetches everything a redraw needs (steps, start marker,
+    // per-track type + blocks) instead of 2-3 Ruby round trips per track.
+    let state;
     try {
-        const tracksCountVal = App.call("$sequencer", "get_tracks_count");
-        if (!tracksCountVal) return; // Wait for initialization
-        tracksCount = parseInt(tracksCountVal.toString());
-        totalSteps = parseInt(App.call("$sequencer", "total_steps").toString());
+        const stateVal = App.call("$sequencer", "get_render_state_json");
+        if (!stateVal) return; // Wait for initialization
+        state = JSON.parse(stateVal.toString());
     } catch(e) {
         console.error("Error in renderSequencer initialization:", e);
         return;
     }
+    const tracksCount = state.tracks.length;
+    const totalSteps = state.total_steps;
 
     // Global controls (BPM/Measures/Swing/RootFreq) are synced by the
     // <sequencer-controls> WebComponent on the seqTrackChanged / trackChanged
@@ -243,12 +244,11 @@ export function setupSequencer(App, opts = {}) {
     markerGrid.style.width = `${totalSteps * CELL_WIDTH}px`;
     markerGrid.dataset.totalSteps = totalSteps;
     // Sync marker position with Ruby state
-    try {
-        const startStep = parseInt(App.call("$sequencer", "start_step").toString());
-        const clamped = Math.max(0, Math.min(totalSteps - 1, startStep));
+    {
+        const clamped = Math.max(0, Math.min(totalSteps - 1, state.start_step));
         marker.style.transform = `translateX(${clamped * CELL_WIDTH - 7}px)`;
         marker.dataset.step = clamped;
-    } catch(e) {}
+    }
 
     // --- Measure ruler row ---
     let rulerRow = document.getElementById("seq-measure-ruler-row");
@@ -324,7 +324,7 @@ export function setupSequencer(App, opts = {}) {
 
     for (let t = 0; t < tracksCount; t++) {
         let cached = trackRowsCache.get(t);
-        let trackType = App.call("$sequencer", "get_track_type", t).toString();
+        const trackType = state.tracks[t].type;
 
         if (!cached) {
             const row = document.createElement("div");
@@ -362,6 +362,31 @@ export function setupSequencer(App, opts = {}) {
             playhead.className = "playhead-cursor";
             grid.appendChild(playhead);
 
+            // Grid events are bound once per row; the closures capture the row
+            // index t, which is stable because rows are cached by index.
+            grid.onmousedown = (e) => {
+                if (e.target.classList.contains("block") || e.target.tagName === "CANVAS") return;
+                isDrawing = true;
+                drawTrackIndex = t;
+                drawStartStep = Math.floor((e.clientX - grid.getBoundingClientRect().left) / CELL_WIDTH);
+                ghostBlock = document.createElement("div");
+                ghostBlock.style.position = "absolute";
+                ghostBlock.style.height = "100%";
+                ghostBlock.style.background = "rgba(77, 171, 247, 0.5)";
+                ghostBlock.style.left = `${drawStartStep * CELL_WIDTH}px`;
+                ghostBlock.style.width = `${CELL_WIDTH}px`;
+                ghostBlock.style.pointerEvents = "none";
+                grid.appendChild(ghostBlock);
+            };
+            grid.onmousemove = (e) => {
+                if (!isDrawing || drawTrackIndex !== t) return;
+                const cur = Math.floor((e.clientX - grid.getBoundingClientRect().left) / CELL_WIDTH);
+                const s = Math.min(drawStartStep, cur);
+                const len = Math.max(drawStartStep, cur) - s + 1;
+                ghostBlock.style.left = `${s * CELL_WIDTH}px`;
+                ghostBlock.style.width = `${len * CELL_WIDTH}px`;
+            };
+
             // Insert before the scroll row if it exists, or just append.
             // Note: <track-controls> connectedCallback only fires once `row`
             // enters the DOM, so we must read tc.__rubyId AFTER insertion.
@@ -386,34 +411,9 @@ export function setupSequencer(App, opts = {}) {
         grid.style.width = `${totalSteps * CELL_WIDTH}px`;
         grid.style.backgroundImage = `repeating-linear-gradient(90deg,#888 0px,#888 1px,transparent 1px,transparent ${CELL_WIDTH * 32}px),repeating-linear-gradient(90deg,#555 0px,#555 1px,transparent 1px,transparent ${CELL_WIDTH * 8}px),repeating-linear-gradient(90deg,#333 0px,#333 1px,transparent 1px,transparent ${CELL_WIDTH}px)`;
 
-        // Grid Events
-        grid.onmousedown = (e) => {
-            if (e.target.classList.contains("block") || e.target.tagName === "CANVAS") return;
-            isDrawing = true;
-            drawTrackIndex = t;
-            drawStartStep = Math.floor((e.clientX - grid.getBoundingClientRect().left) / CELL_WIDTH);
-            ghostBlock = document.createElement("div");
-            ghostBlock.style.position = "absolute";
-            ghostBlock.style.height = "100%";
-            ghostBlock.style.background = "rgba(77, 171, 247, 0.5)";
-            ghostBlock.style.left = `${drawStartStep * CELL_WIDTH}px`;
-            ghostBlock.style.width = `${CELL_WIDTH}px`;
-            ghostBlock.style.pointerEvents = "none";
-            grid.appendChild(ghostBlock);
-        };
-        grid.onmousemove = (e) => {
-            if (!isDrawing || drawTrackIndex !== t) return;
-            const cur = Math.floor((e.clientX - grid.getBoundingClientRect().left) / CELL_WIDTH);
-            const s = Math.min(drawStartStep, cur);
-            const len = Math.max(drawStartStep, cur) - s + 1;
-            ghostBlock.style.left = `${s * CELL_WIDTH}px`;
-            ghostBlock.style.width = `${len * CELL_WIDTH}px`;
-        };
-
         // Sync Blocks via <sequencer-block> WebComponents
         try {
-            const blocksJson = App.call("$sequencer", "get_track_blocks_json", t).toString();
-            const blocks = JSON.parse(blocksJson);
+            const blocks = state.tracks[t].blocks;
             const currentBlockKeys = new Set();
 
             blocks.forEach(b => {

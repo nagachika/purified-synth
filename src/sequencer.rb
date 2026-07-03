@@ -554,7 +554,21 @@ class Sequencer
     track = @tracks[track_index]
     return "[]" unless track
 
-    data = track.blocks.map do |b|
+    JSON.generate(track_blocks_data(track))
+  end
+
+  # Everything renderSequencer (sequencer_ui.js) needs for one full redraw,
+  # bundled into a single bridge call instead of 2-3 calls per track.
+  def get_render_state_json
+    JSON.generate({
+      total_steps: @total_steps,
+      start_step: @start_step,
+      tracks: @tracks.map { |t| { type: t.type, blocks: track_blocks_data(t) } }
+    })
+  end
+
+  def track_blocks_data(track)
+    track.blocks.map do |b|
       res = {
         start: b.start_step,
         length: b.length,
@@ -564,7 +578,6 @@ class Sequencer
       res[:pattern_id] = b.pattern_id if track.type == :rhythmic
       res
     end
-    JSON.generate(data)
   end
 
   # --- Playback ---
