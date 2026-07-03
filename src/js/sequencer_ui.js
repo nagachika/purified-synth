@@ -1,4 +1,4 @@
-import { CELL_WIDTH } from "./utils.js";
+import { CELL_WIDTH, TRACK_HEADER_WIDTH, TRACK_HEADER_GAP } from "./utils.js";
 
 // Queue for future playhead updates from Ruby
 const playheadQueue = [];
@@ -156,9 +156,10 @@ export function setupSequencer(App, opts = {}) {
         markerRow.style.flexShrink = "0";
 
         const mLeft = document.createElement("div");
-        mLeft.style.width = "180px";
+        mLeft.style.boxSizing = "border-box";
+        mLeft.style.width = `${TRACK_HEADER_WIDTH}px`;
         mLeft.style.flexShrink = "0";
-        mLeft.style.marginRight = "10px";
+        mLeft.style.marginRight = `${TRACK_HEADER_GAP}px`;
         mLeft.style.fontSize = "0.75rem";
         mLeft.style.color = "#888";
         mLeft.style.display = "flex";
@@ -263,9 +264,10 @@ export function setupSequencer(App, opts = {}) {
         rulerRow.style.flexShrink = "0";
 
         const rLeft = document.createElement("div");
-        rLeft.style.width = "180px";
+        rLeft.style.boxSizing = "border-box";
+        rLeft.style.width = `${TRACK_HEADER_WIDTH}px`;
         rLeft.style.flexShrink = "0";
-        rLeft.style.marginRight = "10px";
+        rLeft.style.marginRight = `${TRACK_HEADER_GAP}px`;
         rulerRow.appendChild(rLeft);
 
         const rWrapper = document.createElement("div");
@@ -462,7 +464,10 @@ export function setupSequencer(App, opts = {}) {
         scrollRow.id = "sequencer-scroll-row";
         scrollRow.style.display = "flex";
         const spacer = document.createElement("div");
-        spacer.style.width = "150px"; spacer.style.flexShrink = "0";
+        spacer.style.boxSizing = "border-box";
+        spacer.style.width = `${TRACK_HEADER_WIDTH}px`;
+        spacer.style.marginRight = `${TRACK_HEADER_GAP}px`;
+        spacer.style.flexShrink = "0";
         scrollRow.appendChild(spacer);
         scrollRow.appendChild(scrollContainer);
         rowsContainer.appendChild(scrollRow);

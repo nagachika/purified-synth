@@ -575,12 +575,14 @@ class Sequencer
     @current_step = @start_step
     @next_note_time = @ctx[:currentTime].to_f + 0.1
 
-    # Use unique interval name based on instance name
+    # Use unique interval name based on instance name.
+    # Go through App.eval (not raw vm.eval) so a scheduler exception is
+    # logged once per tick instead of thrown uncaught every 25ms.
     interval_name = "seqInterval_#{@name.gsub('$', '')}"
     code = <<~JAVASCRIPT
       window.App["#{interval_name}"] = setInterval(() => {
         if (window.App && window.App.vm) {
-          window.App.vm.eval("#{@name}.scheduler");
+          window.App.eval("#{@name}.scheduler", "Scheduler");
         }
       }, #{@lookahead_ms});
     JAVASCRIPT

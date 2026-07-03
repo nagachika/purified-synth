@@ -46,7 +46,10 @@ class TrackControls
     s = @element[:style]
     s[:display] = "flex"
     s[:flexDirection] = "column"
-    s[:width] = "180px"
+    # Border-box width + gap must match TRACK_HEADER_WIDTH / TRACK_HEADER_GAP
+    # in src/js/utils.js so marker/ruler/scroll spacers line up with the grid.
+    s[:boxSizing] = "border-box"
+    s[:width] = "190px"
     s[:flexShrink] = "0"
     s[:borderRight] = "1px solid #555"
     s[:paddingRight] = "10px"
