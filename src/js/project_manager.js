@@ -58,6 +58,9 @@ export function setupProjectManager(App) {
         // block elements don't linger past the project swap.
         window.dispatchEvent(new Event("projectLoaded"));
         window.dispatchEvent(new Event("trackChanged"));
+        // Refresh the Pattern tab and persist the loaded patterns to
+        // localStorage so a page reload doesn't clobber them.
+        window.dispatchEvent(new Event("refreshPatterns"));
         
         alert("Project loaded successfully!");
 

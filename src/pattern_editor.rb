@@ -274,6 +274,16 @@ class PatternEditor
     puts "[PatternEditor] load_pattern error: #{e.message}"
   end
 
+  # Called after the sequencer's patterns are swapped wholesale (e.g. project
+  # load). Persists the new patterns to localStorage so a page reload doesn't
+  # clobber them with the previous session, then refreshes the list/grid.
+  def sync_patterns_from_sequencer
+    save_patterns
+    update_pattern_list
+  rescue => e
+    puts "[PatternEditor] sync_patterns_from_sequencer error: #{e.message}"
+  end
+
   def update_preview_ui
     bpm = $patternSequencer.bpm.to_s
     if @doc[:activeElement] != @bpm_input
@@ -450,7 +460,7 @@ class PatternEditor
         const signal = window.__wcSignal;
         delete window.__wcSignal;
         window.addEventListener("refreshPatterns", () => {
-          App.call("wc:#{rid}", "update_pattern_list");
+          App.call("wc:#{rid}", "sync_patterns_from_sequencer");
         }, { signal });
         window.addEventListener("selectPattern", (e) => {
           if (e.detail && e.detail.id) {
