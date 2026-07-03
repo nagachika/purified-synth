@@ -15,8 +15,6 @@ class Synthesizer
     @custom_patch = default_patch
 
     @active_voices = {}
-    @noise_buffer = create_noise_buffer
-    @pink_noise_buffer = create_pink_noise_buffer
   end
 
   def build_global_graph
@@ -64,8 +62,20 @@ class Synthesizer
     @active_voices.clear
   end
 
-  def create_noise_buffer
-    rate = @ctx[:sampleRate].to_f
+  # Noise buffers are read-only and can be shared across every Synthesizer /
+  # Voice via multiple AudioBufferSourceNodes. Generate each one lazily and
+  # only once per class, so adding tracks (a DrumMachine spins up 4 synths)
+  # doesn't regenerate ~3.5MB of buffers each time.
+  def self.shared_noise_buffer(ctx)
+    @shared_noise_buffer ||= create_noise_buffer(ctx)
+  end
+
+  def self.shared_pink_noise_buffer(ctx)
+    @shared_pink_noise_buffer ||= create_pink_noise_buffer(ctx)
+  end
+
+  def self.create_noise_buffer(ctx)
+    rate = ctx[:sampleRate].to_f
     length = rate.to_i # 1 second of noise
 
     # Using raw JS for buffer creation as before
@@ -81,8 +91,8 @@ class Synthesizer
     buffer
   end
 
-  def create_pink_noise_buffer
-    rate = @ctx[:sampleRate].to_f
+  def self.create_pink_noise_buffer(ctx)
+    rate = ctx[:sampleRate].to_f
     length = (rate * 4).to_i # 4 seconds of noise (longer loop to soften the seam)
     rows = 16 # Voss-McCartney generators (pink slope down to ~sampleRate/2^16)
 
@@ -132,8 +142,13 @@ class Synthesizer
     buffer
   end
 
-  attr_reader :noise_buffer
-  attr_reader :pink_noise_buffer
+  def noise_buffer
+    self.class.shared_noise_buffer(@ctx)
+  end
+
+  def pink_noise_buffer
+    self.class.shared_pink_noise_buffer(@ctx)
+  end
 
   def volume=(val)
     @master_gain.gain.value = val.to_f * 0.5
