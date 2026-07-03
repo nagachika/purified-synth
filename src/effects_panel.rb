@@ -8,7 +8,10 @@ class EffectsPanel
     { id: "delay_time",     label: "Time",     min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: " s", panel: :delay },
     { id: "delay_feedback", label: "Feedback", min: 0.0, max: 0.95, step: 0.01, default: 0.4, suffix: "",   panel: :delay },
     { id: "delay_mix",      label: "Mix",      min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: "",   panel: :delay },
-    { id: "reverb_seconds", label: "Seconds",  min: 0.1, max: 5.0,  step: 0.1,  default: 2.0, suffix: " s", panel: :reverb },
+    # reverb_seconds regenerates the convolution IR (a costly 2ch buffer) on
+    # every apply, so only apply it on `change` (drag release) rather than on
+    # every `input` tick.
+    { id: "reverb_seconds", label: "Seconds",  min: 0.1, max: 5.0,  step: 0.1,  default: 2.0, suffix: " s", panel: :reverb, apply_on: :change },
     { id: "reverb_mix",     label: "Mix",      min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: "",   panel: :reverb }
   ]
 
@@ -79,11 +82,21 @@ class EffectsPanel
 
     pid = p[:id]
     suffix = p[:suffix]
+    apply_on_change = p[:apply_on] == :change
+
+    apply = proc {
+      val = input[:value].to_f
+      $effect_controller.send(:"#{pid}=", val) if $effect_controller
+    }
+
+    # `input` always keeps the display in sync during the drag; params that opt
+    # into apply_on: :change defer the (expensive) controller apply to release.
     input.call(:addEventListener, "input", proc {
       val = input[:value].to_f
       display[:textContent] = "#{format_value(val)}#{suffix}"
-      $effect_controller.send(:"#{pid}=", val) if $effect_controller
+      apply.call unless apply_on_change
     })
+    input.call(:addEventListener, "change", apply) if apply_on_change
 
     grp
   end
