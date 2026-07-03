@@ -4,6 +4,11 @@ require 'json'
 class Presets
   STORAGE_KEY = "ruby_synth_presets"
 
+  # Ruby-side accessor (name => patch-JSON-string Hash). get_presets below
+  # returns JSON for the JS bridge; Ruby callers should use this to skip the
+  # serialize round trip. Treat as read-only — mutate via update_preset etc.
+  attr_reader :presets
+
   def initialize
     load
   end

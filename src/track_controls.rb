@@ -140,8 +140,7 @@ class TrackControls
     placeholder[:textContent] = "(Default)"
     @preset_sel.call(:appendChild, placeholder)
 
-    presets = JSON.parse($presets.get_presets)
-    presets.keys.each do |name|
+    $presets.presets.keys.each do |name|
       opt = @doc.call(:createElement, "option")
       opt[:value] = name
       opt[:textContent] = name
@@ -181,8 +180,7 @@ class TrackControls
       $sequencer.import_track_patch(@track_idx, patch_json)
       $sequencer.set_track_preset_name(@track_idx, "")
     else
-      presets = JSON.parse($presets.get_presets)
-      json = presets[name]
+      json = $presets.presets[name]
       if json
         $sequencer.import_track_patch(@track_idx, json)
         $sequencer.set_track_preset_name(@track_idx, name)

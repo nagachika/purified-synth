@@ -370,7 +370,7 @@ class ChordSelectorModal
 
   def render_chord_list
     @list_el[:innerHTML] = ""
-    chords = JSON.parse($chordManager.get_chords)
+    chords = $chordManager.chords
     if chords.empty?
       placeholder = create_div(
         textAlign: "center", color: "#aaa", padding: "20px"

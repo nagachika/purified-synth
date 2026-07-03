@@ -4,6 +4,11 @@ require 'json'
 class ChordManager
   STORAGE_KEY = "ruby_synth_chords"
 
+  # Ruby-side accessor (string-keyed Hash). get_chords below returns JSON for
+  # the JS bridge; Ruby callers should use this to skip the serialize round trip.
+  # Treat as read-only — mutate via update_chord / delete_chord / set_chords.
+  attr_reader :chords
+
   def initialize
     load
   end

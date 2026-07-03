@@ -155,8 +155,7 @@ class ChordEditor
   def on_preview_select(event)
     name = event[:target][:value].to_s
     return if name.empty?
-    presets = JSON.parse($presets.get_presets)
-    json = presets[name]
+    json = $presets.presets[name]
     return unless json
     data = JSON.parse(json)
     if data["nodes"]
@@ -224,8 +223,7 @@ class ChordEditor
     placeholder[:textContent] = "-- Preview Sound --"
     @preview_sel.call(:appendChild, placeholder)
 
-    presets = JSON.parse($presets.get_presets)
-    presets.keys.each do |name|
+    $presets.presets.keys.each do |name|
       opt = @doc.call(:createElement, "option")
       opt[:value] = name
       opt[:textContent] = name
@@ -235,8 +233,7 @@ class ChordEditor
 
   def render_chord_list
     @list_el[:innerHTML] = ""
-    chords = JSON.parse($chordManager.get_chords)
-    chords.each do |name, entry|
+    $chordManager.chords.each do |name, entry|
       legacy = entry.is_a?(Array)
       notes = legacy ? entry : entry["notes"]
       dim = legacy ? nil : entry["dimension"]
