@@ -298,6 +298,11 @@ class PatternEditor
       @play_btn[:innerHTML] = '<span class="material-icons" style="font-size: 1.2rem; margin-right: 4px;">play_arrow</span> Preview'
       @play_btn[:style][:background] = "#28a745"
     end
+
+    # The rAF loop stops crossing into Ruby once the playhead stops advancing,
+    # so clear the trailing highlight from here (update_highlight self-guards
+    # and resolves to pattern_step -1 when stopped).
+    update_highlight
   rescue => e
     # silent: polled frequently
   end
@@ -427,10 +432,18 @@ class PatternEditor
       (() => {
         const signal = window.__wcSignal;
         delete window.__wcSignal;
+        let lastStep;
         function animate() {
           if (signal.aborted) return;
-          try { App.call("wc:#{rid}", "update_highlight"); } catch(e) {}
           requestAnimationFrame(animate);
+          // Guard entirely in JS so we don't pay a Ruby VM crossing 60x/s while
+          // the Pattern tab is hidden or the playhead hasn't moved.
+          const view = document.getElementById("view-pattern");
+          if (!view || !view.classList.contains("active")) return;
+          const s = window._currentPreviewStep;
+          if (s === lastStep) return;
+          lastStep = s;
+          try { App.call("wc:#{rid}", "update_highlight"); } catch(e) {}
         }
         requestAnimationFrame(animate);
       })();
