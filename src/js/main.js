@@ -185,7 +185,6 @@ const main = async () => {
     // Init Sequencer & Synth
     App.eval("$sequencer = Sequencer.new($ctx, name: '$sequencer')");
     App.eval("$synth = $sequencer.current_track.synth");
-    App.eval("$effect_controller = $sequencer.effects_chain");
 
     // Pattern Preview Sequencer
     App.eval("$patternSequencer = Sequencer.new($ctx, name: '$patternSequencer')");
@@ -193,16 +192,16 @@ const main = async () => {
     App.eval("$patternSequencer.set_patterns_reference($sequencer.patterns)");
     App.eval("$patternSequencer.set_total_bars(1)"); // Preview is 1 bar (32 steps)
 
-    // Create a standalone synth for Chord Preview
-    // Setup: Synth -> Effects -> Analyser -> Compressor -> Destination
+    // Create a standalone synth for the Synthesizer tab preview.
+    // Delay/reverb are no longer built in: wire DelayEffect/ReverbEffect
+    // nodes into the patch graph instead.
+    // Setup: Synth -> Analyser -> Compressor -> Destination
     App.eval("$previewSynth = Synthesizer.new($ctx)");
-    App.eval("$previewEffects = EffectsChain.new($ctx)");
     App.eval("$previewAnalyser = AnalyserNode.new($ctx)");
     App.eval("$previewAnalyser.fft_size = 2048");
 
     // Connect Chain
-    App.eval("$previewSynth.connect($previewEffects.input_node)");
-    App.eval("$previewEffects.connect($previewAnalyser)");
+    App.eval("$previewSynth.connect($previewAnalyser)");
     App.eval("$previewComp = DynamicsCompressorNode.new($ctx)");
     App.eval("$previewComp.threshold.value = -24.0");
     App.eval("$previewAnalyser.connect($previewComp)");
@@ -210,16 +209,23 @@ const main = async () => {
 
     // --- Chord Synth Setup ---
     App.eval("$chordSynth = Synthesizer.new($ctx)");
-    App.eval("$chordEffects = EffectsChain.new($ctx)");
     App.eval("$chordComp = DynamicsCompressorNode.new($ctx)");
     App.eval("$chordComp.threshold.value = -24.0");
-    App.eval("$chordSynth.connect($chordEffects.input_node)");
-    App.eval("$chordEffects.connect($chordComp)");
+    App.eval("$chordSynth.connect($chordComp)");
     App.eval("$chordComp.connect($ctx[:destination])");
+
+    // --- Audition Synth ---
+    // Dedicated dry synth for lattice note auditions (chord editor + sequencer
+    // grid editor). Kept independent of $previewSynth so insert Delay/Reverb
+    // nodes in the Synthesizer patch don't color pitch previews.
+    App.eval("$auditionSynth = Synthesizer.new($ctx)");
+    App.eval("$auditionComp = DynamicsCompressorNode.new($ctx)");
+    App.eval("$auditionComp.threshold.value = -24.0");
+    App.eval("$auditionSynth.connect($auditionComp)");
+    App.eval("$auditionComp.connect($ctx[:destination])");
 
     // Default to preview synth for UI initially
     App.eval("$synth = $previewSynth");
-    App.eval("$effect_controller = $previewEffects");
     window.synthAnalyser = App.eval("$previewAnalyser.native_node").toJS();
 
     console.log("Initialized");

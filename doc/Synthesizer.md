@@ -97,3 +97,31 @@ Envelope generator. Note: In this architecture, ADSR is treated as a signal sour
   - `sustain`: Level (0.0 - 1.0).
   - `release`: Time in seconds.
 - **Audio Params (Inputs):** None.
+
+### Effect Nodes (synth-shared)
+
+Unlike every other node type, effect nodes are instantiated **once per Synthesizer** and shared by all voices, instead of being rebuilt for each `note_on`. All sounding voices are mixed into the same effect instance (equivalent for these linear effects), which keeps CPU cost constant under polyphony and lets delay/reverb tails keep ringing after a voice is torn down.
+
+Consequences:
+- An effect node's **output may only connect to another effect node or `"out"`**. The graph editor rejects other connections; Ruby skips them with a warning.
+- Per-voice sources (LFOs, envelopes) *may* modulate an effect node's params, but the modulation signals from all voices **sum** on the shared parameter.
+- Parameter edits apply live to the shared instance without cutting tails; adding/removing effect nodes or rewiring them rebuilds the shared section.
+
+#### `DelayEffect`
+Feedback delay with wet/dry mix.
+- **Init Params:**
+  - `delay_time`: Delay time in seconds (0.0 - 5.0).
+  - `feedback`: Feedback gain (0.0 - 0.95).
+  - `mix`: Wet/dry balance (0.0 - 1.0).
+- **Audio Params (Inputs):**
+  - `delay_time`: Modulates delay time.
+  - `feedback`: Modulates feedback gain.
+  - `mix`: Modulates the wet gain (dry stays at its static `1 - mix`).
+
+#### `ReverbEffect`
+Convolution reverb with a procedurally generated impulse response.
+- **Init Params:**
+  - `seconds`: Decay length in seconds (0.1 - 5.0). Rebuilds the impulse response (cached per length), so it is an init param only.
+  - `mix`: Wet/dry balance (0.0 - 1.0).
+- **Audio Params (Inputs):**
+  - `mix`: Modulates the wet gain (dry stays at its static `1 - mix`).

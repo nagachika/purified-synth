@@ -288,7 +288,7 @@ class ChordSelectorModal
     c = note["c"] || 0; d = note["d"] || 0; e = note["e"] || 0
     freq = $sequencer.calculate_freq_from_coords(a, b, c, d, e).to_f
     now = JS.global[:App][:audioCtx][:currentTime].to_f
-    $previewSynth.schedule_note(freq, now, 0.3)
+    $auditionSynth.schedule_note(freq, now, 0.3)
   rescue => e
     puts "[ChordSelectorModal] preview error: #{e.message}"
   end

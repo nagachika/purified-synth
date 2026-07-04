@@ -7,12 +7,12 @@ class EffectsPanel
   PARAMS = [
     { id: "delay_time",     label: "Time",     min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: " s", panel: :delay },
     { id: "delay_feedback", label: "Feedback", min: 0.0, max: 0.95, step: 0.01, default: 0.4, suffix: "",   panel: :delay },
-    { id: "delay_mix",      label: "Mix",      min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: "",   panel: :delay },
+    { id: "delay_level",    label: "Level",    min: 0.0, max: 1.0,  step: 0.01, default: 0.5, suffix: "",   panel: :delay },
     # reverb_seconds regenerates the convolution IR (a costly 2ch buffer) on
     # every apply, so only apply it on `change` (drag release) rather than on
     # every `input` tick.
     { id: "reverb_seconds", label: "Seconds",  min: 0.1, max: 5.0,  step: 0.1,  default: 2.0, suffix: " s", panel: :reverb, apply_on: :change },
-    { id: "reverb_mix",     label: "Mix",      min: 0.0, max: 1.0,  step: 0.01, default: 0.3, suffix: "",   panel: :reverb }
+    { id: "reverb_level",   label: "Level",    min: 0.0, max: 1.0,  step: 0.01, default: 0.5, suffix: "",   panel: :reverb }
   ]
 
   def connected_callback(element)
@@ -23,17 +23,17 @@ class EffectsPanel
 
     @element[:style][:display] = "contents"
 
-    build_panel("Delay Effect", :delay)
-    build_panel("Reverb Effect", :reverb)
+    build_panel("Delay Send", :delay)
+    build_panel("Reverb Send", :reverb)
 
     update_from_controller
     install_global_event_listeners
   end
 
   def update_from_controller
-    return unless $effect_controller
+    return unless controller
     PARAMS.each do |p|
-      val = $effect_controller.send(p[:id]).to_f
+      val = controller.send(p[:id]).to_f
       @inputs[p[:id]][:value] = val.to_s
       @displays[p[:id]][:textContent] = "#{format_value(val)}#{p[:suffix]}"
     end
@@ -42,6 +42,11 @@ class EffectsPanel
   end
 
   private
+
+  # The panel is dedicated to the sequencer's send/return chain.
+  def controller
+    $sequencer&.effects_chain
+  end
 
   def build_panel(title, panel_key)
     panel = @doc.call(:createElement, "div")
@@ -86,7 +91,7 @@ class EffectsPanel
 
     apply = proc {
       val = input[:value].to_f
-      $effect_controller.send(:"#{pid}=", val) if $effect_controller
+      controller&.send(:"#{pid}=", val)
     }
 
     # `input` always keeps the display in sync during the drag; params that opt
@@ -117,7 +122,7 @@ class EffectsPanel
       (() => {
         const host = window.__wcEffectsHost;
         const opts = host.__abort ? { signal: host.__abort.signal } : undefined;
-        window.addEventListener("effectControllerChanged", () => {
+        window.addEventListener("projectLoaded", () => {
           try { App.eval("WebComponent::WC_REGISTRY[#{rid}].update_from_controller"); } catch(_) {}
         }, opts);
       })();

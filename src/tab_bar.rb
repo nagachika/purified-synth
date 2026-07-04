@@ -36,8 +36,6 @@ class TabBar
 
     apply_context(tab_id)
 
-    JS.eval("setTimeout(() => window.dispatchEvent(new Event('effectControllerChanged')), 0)")
-
     begin
       $midiProcessor.set_tab(tab_id) if $midiProcessor
     rescue => e
@@ -76,15 +74,12 @@ class TabBar
     case tab_id
     when "synth"
       $synth = $previewSynth
-      $effect_controller = $previewEffects
       JS.global[:window][:synthAnalyser] = $previewAnalyser.native_node
       refresh_modular_editor
     when "seq"
-      $effect_controller = $sequencer.effects_chain
       JS.eval("setTimeout(() => window.dispatchEvent(new Event('trackChanged')), 0)")
     when "chord"
       $synth = $chordSynth
-      $effect_controller = $chordEffects
       refresh_modular_editor
     when "pattern"
       # no-op

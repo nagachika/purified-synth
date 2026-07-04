@@ -150,7 +150,7 @@ class ChordEditor
         note["a"] || note[:a], note["b"] || note[:b],
         note["c"] || note[:c], note["d"] || note[:d], note["e"] || note[:e]
       ).to_f
-      $previewSynth.schedule_note(freq, now, 0.5)
+      $auditionSynth.schedule_note(freq, now, 0.5)
     end
   rescue => e
     puts "[ChordEditor] preview error: #{e.message}"
@@ -163,7 +163,7 @@ class ChordEditor
     return unless json
     data = JSON.parse(json)
     if data["nodes"]
-      $previewSynth.import_patch(json)
+      $auditionSynth.import_patch(json)
     else
       puts "[ChordEditor] legacy preset format not supported in preview"
     end
@@ -406,7 +406,7 @@ class ChordEditor
     e = note["e"] || note[:e] || 0
     freq = $sequencer.calculate_freq_from_coords(a, b, c, d, e).to_f
     now = JS.global[:App][:audioCtx][:currentTime].to_f
-    $previewSynth.schedule_note(freq, now, 0.3)
+    $auditionSynth.schedule_note(freq, now, 0.3)
   rescue => e
     puts "[ChordEditor] play_preview_note error: #{e.message}"
   end

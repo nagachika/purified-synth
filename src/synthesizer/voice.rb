@@ -22,6 +22,9 @@ class Voice
 
     # 1. Create Nodes defined in the patch
     @patch[:nodes].each do |n|
+      # Shared effect nodes live on the Synthesizer, not the voice
+      next if Synthesizer::SHARED_EFFECT_TYPES.include?(n[:type])
+
       node = nil
       case n[:type]
       when "Oscillator"
@@ -75,6 +78,10 @@ class Voice
 
     # 2. Establish Connections
     @patch[:connections].each do |conn|
+      # Connections originating from shared effect nodes are wired once at
+      # the Synthesizer level (see Synthesizer#rebuild_shared_effects).
+      next if @synth.shared_effect_nodes.key?(conn[:from])
+
       source = @nodes[conn[:from]] || @envelopes[conn[:from]]
       unless source
         puts "Warning: Connection source '#{conn[:from]}' not found"
@@ -86,7 +93,7 @@ class Voice
         source.connect(@output_node)
       else
         target_id, param_name = target_path.split('.')
-        target = @nodes[target_id]
+        target = @nodes[target_id] || @synth.shared_effect_nodes[target_id]
         unless target
           puts "Warning: Connection target '#{target_id}' not found"
           next

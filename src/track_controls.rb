@@ -85,11 +85,18 @@ class TrackControls
     @solo_btn.call(:addEventListener, "click", proc { on_toggle_solo })
     btn_row.call(:appendChild, @solo_btn)
 
-    @send_btn = @doc.call(:createElement, "button")
-    style(@send_btn, padding: "4px", border: "1px solid #555", cursor: "pointer")
-    @send_btn[:title] = "Send to Effects"
-    @send_btn.call(:addEventListener, "click", proc { on_toggle_send })
-    btn_row.call(:appendChild, @send_btn)
+    @send_knob_container = @doc.call(:createElement, "div")
+    style(@send_knob_container,
+      display: "flex", alignItems: "center", justifyContent: "center", cursor: "ns-resize"
+    )
+    @send_knob_container[:title] = "Send Level"
+    @send_knob_icon = @doc.call(:createElement, "span")
+    @send_knob_icon[:className] = "material-icons"
+    @send_knob_icon[:textContent] = "arrow_circle_up"
+    style(@send_knob_icon, fontSize: "1.5rem", color: "#666")
+    @send_knob_container.call(:appendChild, @send_knob_icon)
+    @send_knob_container.call(:addEventListener, "mousedown", proc { |e| begin_send_drag(e) })
+    btn_row.call(:appendChild, @send_knob_container)
 
     @arp_btn = @doc.call(:createElement, "button")
     style(@arp_btn, padding: "4px", border: "1px solid #555")
@@ -219,10 +226,13 @@ class TrackControls
   end
 
   def apply_send
-    send = $sequencer.get_track_send(@track_idx)
-    @send_btn[:innerHTML] = "<span class=\"material-icons\" style=\"font-size: 1.2rem;\">#{send ? 'blur_on' : 'blur_off'}</span>"
-    @send_btn[:style][:background] = send ? "#be4bdb" : "#444"
-    @send_btn[:style][:color] = send ? "white" : "#ccc"
+    render_send_knob($sequencer.get_track_send_level(@track_idx).to_f)
+  end
+
+  def render_send_knob(level)
+    # Map 0..1 to the same -160..160deg sweep as the volume knob (0..2)
+    @send_knob_icon[:style][:transform] = "rotate(#{(level * 2.0 - 1.0) * 160}deg)"
+    @send_knob_icon[:style][:color] = level > 0.0 ? "#be4bdb" : "#666"
   end
 
   def apply_arp(type)
@@ -265,11 +275,6 @@ class TrackControls
     notify_change
   end
 
-  def on_toggle_send
-    $sequencer.set_track_send(@track_idx, !$sequencer.get_track_send(@track_idx))
-    notify_change
-  end
-
   def on_toggle_arp
     return unless @track_type == "melodic"
     $sequencer.set_arpeggiator_enabled(@track_idx, !$sequencer.get_arpeggiator_status(@track_idx))
@@ -306,11 +311,46 @@ class TrackControls
     JS
   end
 
+  def begin_send_drag(event)
+    start_y = event[:clientY].to_f
+    start_level = $sequencer.get_track_send_level(@track_idx).to_f
+    rid = @element[:__rubyId].to_s
+    JS.global[:_sendStartY] = start_y
+    JS.global[:_sendStartLevel] = start_level
+    JS.eval(<<~JS)
+      (() => {
+        const startY = window._sendStartY;
+        const startLevel = window._sendStartLevel;
+        const onMove = (me) => {
+          let nv = startLevel + (startY - me.clientY) / 150;
+          if (nv < 0) nv = 0;
+          if (nv > 1) nv = 1;
+          window._sendNew = nv;
+          try { App.eval("WebComponent::WC_REGISTRY[#{rid}].on_send_drag(JS.global[:_sendNew].to_f)"); } catch(_) {}
+        };
+        const onUp = () => {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          delete window._sendStartY;
+          delete window._sendStartLevel;
+          delete window._sendNew;
+        };
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      })();
+    JS
+  end
+
   public
 
   def on_volume_drag(value)
     $sequencer.set_track_volume(@track_idx, value)
     @knob_icon[:style][:transform] = "rotate(#{(value - 1.0) * 160}deg)"
+  end
+
+  def on_send_drag(value)
+    $sequencer.set_track_send_level(@track_idx, value)
+    render_send_knob(value.to_f)
   end
 
   private

@@ -186,6 +186,172 @@ class CombFilterNode < AudioNodeWrapper
   end
 end
 
+# Base for composite effect nodes: input flows into @native_node (the input
+# gain) while the audible result leaves from @output_gain, so connect and
+# disconnect must operate on the output side.
+# These node types are instantiated once per Synthesizer and shared by all
+# voices (see Synthesizer::SHARED_EFFECT_TYPES), which keeps delay/reverb
+# tails ringing after each voice is torn down.
+class EffectNodeBase < AudioNodeWrapper
+  def connect(destination)
+    if destination.is_a?(AudioNodeWrapper) || destination.is_a?(AudioParamWrapper)
+      @output_gain.connect(destination.native_node)
+    elsif destination.is_a?(JS::Object)
+      @output_gain.connect(destination)
+    else
+      raise ArgumentError, "Cannot connect to #{destination.class}"
+    end
+    self
+  end
+
+  def disconnect(destination = nil)
+    if destination
+      if destination.is_a?(AudioNodeWrapper) || destination.is_a?(AudioParamWrapper)
+        @output_gain.disconnect(destination.native_node)
+      elsif destination.is_a?(JS::Object)
+        @output_gain.disconnect(destination)
+      else
+        raise ArgumentError, "Cannot disconnect from #{destination.class}"
+      end
+    else
+      @output_gain.disconnect
+    end
+  end
+end
+
+class DelayEffectNode < EffectNodeBase
+  def initialize(ctx, delay_time: 0.3, feedback: 0.4, mix: 0.3)
+    @input_gain = ctx.call(:createGain)
+    @output_gain = ctx.call(:createGain)
+    @delay = ctx.call(:createDelay, 5.0) # Max delay 5s
+    @feedback_gain = ctx.call(:createGain)
+    @wet_gain = ctx.call(:createGain)
+    @dry_gain = ctx.call(:createGain)
+
+    super(ctx, @input_gain)
+
+    # Topology:
+    # Input -> Dry -> Output
+    # Input -> Delay -> Wet -> Output
+    # Delay -> Feedback -> Delay (Feedback Loop)
+
+    @input_gain.connect(@dry_gain)
+    @dry_gain.connect(@output_gain)
+    @input_gain.connect(@delay)
+    @delay.connect(@wet_gain)
+    @wet_gain.connect(@output_gain)
+    @delay.connect(@feedback_gain)
+    @feedback_gain.connect(@delay)
+
+    self.delay_time = delay_time
+    self.feedback = feedback
+    self.mix = mix
+  end
+
+  def delay_time=(val)
+    @delay[:delayTime][:value] = val.to_f.clamp(0.0, 5.0)
+  end
+
+  def feedback=(val)
+    @feedback_gain[:gain][:value] = val.to_f.clamp(0.0, 0.95)
+  end
+
+  def mix=(val)
+    m = val.to_f.clamp(0.0, 1.0)
+    @wet_gain[:gain][:value] = m
+    @dry_gain[:gain][:value] = 1.0 - m
+  end
+
+  def param(name)
+    case name.to_s
+    when "delay_time"
+      AudioParamWrapper.new(@delay[:delayTime])
+    when "feedback"
+      AudioParamWrapper.new(@feedback_gain[:gain])
+    when "mix"
+      # Modulates the wet gain only; the dry gain keeps its static 1-mix value.
+      AudioParamWrapper.new(@wet_gain[:gain])
+    else
+      super(name)
+    end
+  end
+end
+
+class ReverbEffectNode < EffectNodeBase
+  def initialize(ctx, seconds: 2.0, mix: 0.3)
+    @input_gain = ctx.call(:createGain)
+    @output_gain = ctx.call(:createGain)
+    @convolver = ctx.call(:createConvolver)
+    @wet_gain = ctx.call(:createGain)
+    @dry_gain = ctx.call(:createGain)
+
+    super(ctx, @input_gain)
+
+    # Topology:
+    # Input -> Dry -> Output
+    # Input -> Convolver -> Wet -> Output
+
+    @input_gain.connect(@dry_gain)
+    @dry_gain.connect(@output_gain)
+    @input_gain.connect(@convolver)
+    @convolver.connect(@wet_gain)
+    @wet_gain.connect(@output_gain)
+
+    self.seconds = seconds
+    self.mix = mix
+  end
+
+  def seconds=(val)
+    @seconds = val.to_f.clamp(0.1, 5.0)
+    @convolver[:buffer] = self.class.ir_buffer(@ctx, @seconds)
+  end
+
+  def mix=(val)
+    m = val.to_f.clamp(0.0, 1.0)
+    @wet_gain[:gain][:value] = m
+    @dry_gain[:gain][:value] = 1.0 - m
+  end
+
+  def param(name)
+    case name.to_s
+    when "mix"
+      AudioParamWrapper.new(@wet_gain[:gain])
+    else
+      super(name)
+    end
+  end
+
+  # Impulse responses are pure functions of the decay length (at a fixed
+  # sample rate), so cache them class-wide like Synthesizer.shared_noise_buffer:
+  # every ReverbEffectNode and the sequencer send chain share one AudioBuffer
+  # per distinct length instead of regenerating seconds of noise on each edit.
+  def self.ir_buffer(ctx, seconds)
+    @ir_buffers ||= {}
+    key = (seconds.to_f * 10).round
+    @ir_buffers[key] ||= create_ir_buffer(ctx, seconds.to_f)
+  end
+
+  def self.create_ir_buffer(ctx, seconds)
+    rate = ctx[:sampleRate].to_f
+    length = [(rate * seconds).to_i, 1].max
+
+    JS.eval(<<~JAVASCRIPT)
+      const length = #{length};
+      const decay = 2.0;
+      const buffer = window._tempReverbBuffer = window.audioCtx.createBuffer(2, length, window.audioCtx.sampleRate);
+      for (let c = 0; c < 2; c++) {
+        const channelData = buffer.getChannelData(c);
+        for (let i = 0; i < length; i++) {
+          channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+        }
+      }
+    JAVASCRIPT
+    buffer = JS.global[:_tempReverbBuffer]
+    JS.eval("delete window._tempReverbBuffer")
+    buffer
+  end
+end
+
 class NoiseNode < AudioNodeWrapper
   def initialize(ctx, buffer)
     native = ctx.call(:createBufferSource)

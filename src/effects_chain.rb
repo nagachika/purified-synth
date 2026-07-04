@@ -1,20 +1,27 @@
 require "js"
 require_relative "synthesizer/nodes"
 
+# Send/return effects for the Sequencer. The chain is wet-only: tracks keep
+# their dry path straight to the sequencer master, so the return must not
+# re-add the dry signal (that would double it). Delay and reverb run in
+# parallel from the send bus, each with its own return level.
 class EffectsChain
+  DEFAULTS = {
+    delay_time: 0.3,
+    delay_feedback: 0.4,
+    delay_level: 0.5,
+    reverb_seconds: 2.0,
+    reverb_level: 0.5
+  }.freeze
+
   attr_reader :input_node, :output_node
-  attr_reader :delay_time, :delay_feedback, :delay_mix
-  attr_reader :reverb_seconds, :reverb_mix
+  attr_reader :delay_time, :delay_feedback, :delay_level
+  attr_reader :reverb_seconds, :reverb_level
 
   def initialize(ctx)
     @ctx = ctx
 
-    # Defaults
-    @delay_time = 0.3
-    @delay_feedback = 0.4
-    @delay_mix = 0.3
-    @reverb_seconds = 2.0
-    @reverb_mix = 0.3
+    DEFAULTS.each { |name, value| instance_variable_set("@#{name}", value) }
 
     build_graph
   end
@@ -23,42 +30,24 @@ class EffectsChain
     @input_node = GainNode.new(@ctx)
     @output_node = GainNode.new(@ctx)
 
-    # --- Delay Effect ---
+    # --- Delay (parallel, wet only) ---
     @delay_node = DelayNode.new(@ctx, delay_time: @delay_time)
     @delay_feedback_gain = GainNode.new(@ctx, gain: @delay_feedback)
-    @delay_wet_gain = GainNode.new(@ctx, gain: @delay_mix)
-    @delay_dry_gain = GainNode.new(@ctx, gain: 1.0 - @delay_mix)
-    @delay_output = GainNode.new(@ctx)
+    @delay_return_gain = GainNode.new(@ctx, gain: @delay_level)
 
-    # --- Reverb Effect ---
-    @convolver = ConvolverNode.new(@ctx)
-    @reverb_wet_gain = GainNode.new(@ctx, gain: @reverb_mix)
-    @reverb_dry_gain = GainNode.new(@ctx, gain: 1.0 - @reverb_mix)
-    @reverb_output = GainNode.new(@ctx)
-
-    # --- Routing Chain ---
-
-    # 1. Delay Block
     @input_node.connect(@delay_node)
-    @input_node.connect(@delay_dry_gain)
-
     @delay_node.connect(@delay_feedback_gain)
     @delay_feedback_gain.connect(@delay_node)
+    @delay_node.connect(@delay_return_gain)
+    @delay_return_gain.connect(@output_node)
 
-    @delay_node.connect(@delay_wet_gain)
-    @delay_wet_gain.connect(@delay_output)
-    @delay_dry_gain.connect(@delay_output)
+    # --- Reverb (parallel, wet only) ---
+    @convolver = ConvolverNode.new(@ctx)
+    @reverb_return_gain = GainNode.new(@ctx, gain: @reverb_level)
 
-    # 2. Reverb Block
-    @delay_output.connect(@convolver)
-    @delay_output.connect(@reverb_dry_gain)
-
-    @convolver.connect(@reverb_wet_gain)
-    @reverb_wet_gain.connect(@reverb_output)
-    @reverb_dry_gain.connect(@reverb_output)
-
-    # 3. Final Output
-    @reverb_output.connect(@output_node)
+    @input_node.connect(@convolver)
+    @convolver.connect(@reverb_return_gain)
+    @reverb_return_gain.connect(@output_node)
 
     update_reverb_buffer
   end
@@ -87,10 +76,9 @@ class EffectsChain
     @delay_feedback_gain.gain.value = @delay_feedback if @delay_feedback_gain
   end
 
-  def delay_mix=(val)
-    @delay_mix = val.to_f
-    @delay_wet_gain.gain.value = @delay_mix if @delay_wet_gain
-    @delay_dry_gain.gain.value = 1.0 - @delay_mix if @delay_dry_gain
+  def delay_level=(val)
+    @delay_level = val.to_f
+    @delay_return_gain.gain.value = @delay_level if @delay_return_gain
   end
 
   def reverb_seconds=(val)
@@ -98,32 +86,16 @@ class EffectsChain
     update_reverb_buffer
   end
 
-  def reverb_mix=(val)
-    @reverb_mix = val.to_f
-    @reverb_wet_gain.gain.value = @reverb_mix if @reverb_wet_gain
-    @reverb_dry_gain.gain.value = 1.0 - @reverb_mix if @reverb_dry_gain
+  def reverb_level=(val)
+    @reverb_level = val.to_f
+    @reverb_return_gain.gain.value = @reverb_level if @reverb_return_gain
+  end
+
+  def reset_to_defaults
+    DEFAULTS.each { |name, value| public_send("#{name}=", value) }
   end
 
   def update_reverb_buffer
-    rate = @ctx[:sampleRate].to_f
-    length = (rate * @reverb_seconds).to_i
-
-    JS.eval(<<~JAVASCRIPT)
-      const ctx = window.audioCtx;
-      const length = #{length};
-      const seconds = #{@reverb_seconds};
-      const decay = 2.0;
-      const buffer = ctx.createBuffer(2, length, ctx.sampleRate);
-
-      for (let c = 0; c < 2; c++) {
-        const channelData = buffer.getChannelData(c);
-        for (let i = 0; i < length; i++) {
-          channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
-        }
-      }
-      window._tempReverbBuffer = buffer;
-    JAVASCRIPT
-
-    @convolver.buffer = JS.global[:_tempReverbBuffer]
+    @convolver.buffer = ReverbEffectNode.ir_buffer(@ctx, @reverb_seconds)
   end
 end

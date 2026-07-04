@@ -56,7 +56,7 @@ end
 
 class Track
   attr_accessor :blocks, :synth, :mute, :preset_name, :solo, :type
-  attr_reader :volume, :arpeggiator, :send_gain
+  attr_reader :volume, :arpeggiator, :send_gain, :send_level
 
   def initialize(ctx, synth, type = :melodic)
     @synth = synth
@@ -68,7 +68,9 @@ class Track
     @volume = 1.0
     @arpeggiator = Arpeggiator.new
 
-    # Send Gain for Effects
+    # Send level for the effects bus. Kept as a Ruby float (reading the
+    # AudioParam back is lossy through the float32 round trip).
+    @send_level = 0.0
     @send_gain = GainNode.new(ctx, gain: 0.0) # Default Send Off
   end
 
@@ -77,12 +79,9 @@ class Track
     @synth.volume = @volume
   end
 
-  def send_enabled=(enabled)
-    @send_gain.gain.value = enabled ? 1.0 : 0.0
-  end
-
-  def send_enabled
-    @send_gain.gain.value > 0.5
+  def send_level=(val)
+    @send_level = val.to_f.clamp(0.0, 1.0)
+    @send_gain.gain.value = @send_level
   end
 
   def add_block(start_step, length, pattern_id = nil)
@@ -223,13 +222,13 @@ class Sequencer
     @tracks[index]&.volume || 1.0
   end
 
-  def set_track_send(index, enabled)
+  def set_track_send_level(index, level)
     t = @tracks[index]
-    t.send_enabled = (enabled == true || enabled == "true") if t
+    t.send_level = level.to_f if t
   end
 
-  def get_track_send(index)
-    @tracks[index]&.send_enabled || false
+  def get_track_send_level(index)
+    @tracks[index]&.send_level || 0.0
   end
 
   def get_track_preset_name(index)
@@ -752,6 +751,13 @@ class Sequencer
       swing: @swing_amount,
       root_freq: @root_freq,
       total_steps: @total_steps,
+      effects: {
+        delay_time: @effects_chain.delay_time,
+        delay_feedback: @effects_chain.delay_feedback,
+        delay_level: @effects_chain.delay_level,
+        reverb_seconds: @effects_chain.reverb_seconds,
+        reverb_level: @effects_chain.reverb_level
+      },
       patterns: @patterns.map(&:to_json_object),
       tracks: @tracks.map { |t|
         data = {
@@ -759,7 +765,7 @@ class Sequencer
           volume: t.volume,
           mute: t.mute,
           solo: t.solo,
-          send: t.send_enabled,
+          send_level: t.send_level,
           preset_name: t.preset_name,
           blocks: t.blocks.map(&:to_json_object),
           arpeggiator: t.arpeggiator.to_json_object
@@ -783,6 +789,19 @@ class Sequencer
     @swing_amount = data[:swing].to_f
     @root_freq = data[:root_freq].to_f
     @total_steps = data[:total_steps].to_i
+
+    # Restore send/return effect settings. Older projects have no :effects
+    # key — reset to defaults so a previously loaded project can't leak its
+    # settings into this one.
+    if (fx = data[:effects])
+      @effects_chain.delay_time = fx[:delay_time].to_f
+      @effects_chain.delay_feedback = fx[:delay_feedback].to_f
+      @effects_chain.delay_level = fx[:delay_level].to_f
+      @effects_chain.reverb_seconds = fx[:reverb_seconds].to_f
+      @effects_chain.reverb_level = fx[:reverb_level].to_f
+    else
+      @effects_chain.reset_to_defaults
+    end
 
     # 2. Restore Patterns
     @patterns.clear
@@ -824,7 +843,12 @@ class Sequencer
       track.volume = t_data[:volume].to_f
       track.mute = t_data[:mute]
       track.solo = t_data[:solo]
-      track.send_enabled = t_data[:send]
+      # Older projects stored a boolean :send; map it to full/no send.
+      track.send_level = if t_data.key?(:send_level)
+                           t_data[:send_level].to_f
+                         else
+                           t_data[:send] ? 1.0 : 0.0
+                         end
       track.preset_name = t_data[:preset_name]
 
       # Restore Arpeggiator

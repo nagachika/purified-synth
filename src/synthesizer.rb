@@ -4,17 +4,32 @@ require_relative "synthesizer/nodes"
 require_relative "synthesizer/voice"
 
 class Synthesizer
+  # Effect node types instantiated once per Synthesizer and shared by all
+  # voices (a per-voice ConvolverNode would multiply CPU cost with polyphony,
+  # and delay/reverb tails would be cut when the voice is torn down).
+  # Their outputs may only feed other shared effect nodes or "out".
+  SHARED_EFFECT_TYPES = ["DelayEffect", "ReverbEffect"].freeze
+
   # Parameters
-  attr_accessor :custom_patch
+  attr_reader :custom_patch, :shared_effect_nodes
   attr_reader :master_gain
 
   def initialize(ctx)
     @ctx = ctx
 
     build_global_graph
-    @custom_patch = default_patch
+    @shared_effect_nodes = {}
+    @shared_signature = nil
+    self.custom_patch = default_patch
 
     @active_voices = {}
+  end
+
+  # Every patch assignment (editor sync, preset load, DrumMachine setup)
+  # flows through here so the shared effect nodes stay in sync with the patch.
+  def custom_patch=(patch)
+    @custom_patch = patch
+    rebuild_shared_effects
   end
 
   def build_global_graph
@@ -58,8 +73,74 @@ class Synthesizer
 
   def close
     @final_node&.disconnect
+    disconnect_shared_effects
     @active_voices.values.each(&:stop_immediately)
     @active_voices.clear
+  end
+
+  # Rebuilds the synth-level shared effect nodes from @custom_patch.
+  # The editor re-imports the whole patch on every parameter edit, so when the
+  # shared topology is unchanged we only apply params in place — tearing the
+  # nodes down would cut ringing tails and churn IR buffers on each keystroke.
+  def rebuild_shared_effects
+    specs = (@custom_patch[:nodes] || []).select { |n| SHARED_EFFECT_TYPES.include?(n[:type]) }
+    shared_ids = specs.map { |n| n[:id] }
+    connections = (@custom_patch[:connections] || []).select do |c|
+      shared_ids.include?(c[:from]) || shared_ids.include?(c[:to].to_s.split(".").first)
+    end
+
+    signature = [
+      specs.map { |n| [n[:id], n[:type]] }.sort,
+      connections.map { |c| [c[:from], c[:to]] }.sort
+    ]
+
+    if signature == @shared_signature
+      specs.each do |spec|
+        wrapper = @shared_effect_nodes[spec[:id]]
+        apply_shared_effect_params(wrapper, spec) if wrapper
+      end
+      return
+    end
+
+    disconnect_shared_effects
+    @shared_effect_nodes.clear
+
+    specs.each do |spec|
+      wrapper = case spec[:type]
+                when "DelayEffect" then DelayEffectNode.new(@ctx)
+                when "ReverbEffect" then ReverbEffectNode.new(@ctx)
+                end
+      apply_shared_effect_params(wrapper, spec)
+      @shared_effect_nodes[spec[:id]] = wrapper
+    end
+
+    # Wire connections originating from shared nodes. Voice-side sources are
+    # wired per voice in Voice#build_graph.
+    connections.each do |conn|
+      source = @shared_effect_nodes[conn[:from]]
+      next unless source
+
+      target_path = conn[:to].to_s
+      if target_path == "out"
+        source.connect(@master_gain)
+        next
+      end
+
+      target_id, param_name = target_path.split(".")
+      target = @shared_effect_nodes[target_id]
+      unless target
+        puts "Warning: shared effect '#{conn[:from]}' may only feed effect nodes or 'out'; skipping connection to '#{target_path}'"
+        next
+      end
+
+      if param_name
+        source.connect(target.param(param_name))
+      else
+        source.connect(target)
+      end
+    end
+
+    @shared_signature = signature
   end
 
   # Noise buffers are read-only and can be shared across every Synthesizer /
@@ -188,10 +269,35 @@ class Synthesizer
   # --- Preset Management ---
 
   def import_patch(json_str)
-    @custom_patch = JSON.parse(json_str.to_s, symbolize_names: true)
+    self.custom_patch = JSON.parse(json_str.to_s, symbolize_names: true)
   end
 
   def export_patch
     JSON.generate(@custom_patch)
+  end
+
+  private
+
+  def apply_shared_effect_params(wrapper, spec)
+    params = spec[:params] || {}
+    case spec[:type]
+    when "DelayEffect"
+      wrapper.delay_time = params[:delay_time] unless params[:delay_time].nil?
+      wrapper.feedback = params[:feedback] unless params[:feedback].nil?
+      wrapper.mix = params[:mix] unless params[:mix].nil?
+    when "ReverbEffect"
+      wrapper.seconds = params[:seconds] unless params[:seconds].nil?
+      wrapper.mix = params[:mix] unless params[:mix].nil?
+    end
+  end
+
+  def disconnect_shared_effects
+    @shared_effect_nodes.each_value do |wrapper|
+      begin
+        wrapper.disconnect
+      rescue => e
+        puts "Warning: shared effect disconnect failed: #{e.message}"
+      end
+    end
   end
 end

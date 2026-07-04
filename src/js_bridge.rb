@@ -9,7 +9,6 @@ BRIDGE_TARGETS = {
   '$synth'             => -> { $synth },
   '$previewSynth'      => -> { $previewSynth },
   '$chordSynth'        => -> { $chordSynth },
-  '$effect_controller' => -> { $effect_controller },
   '$midiProcessor'     => -> { $midiProcessor },
   '$chordManager'      => -> { $chordManager },
   '$presets'           => -> { $presets }

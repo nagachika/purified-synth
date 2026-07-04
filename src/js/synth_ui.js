@@ -47,6 +47,21 @@ const NODE_TYPES = {
     hasOutput: true,
     hasInput: false
   },
+  DelayEffect: {
+    initParams: { delay_time: 0.3, feedback: 0.4, mix: 0.3 },
+    inputs: ["delay_time", "feedback", "mix"],
+    hasOutput: true,
+    hasInput: true,
+    isEffect: true
+  },
+  ReverbEffect: {
+    // "seconds" rebuilds the impulse response, so it is an init param only
+    initParams: { seconds: 2.0, mix: 0.3 },
+    inputs: ["mix"],
+    hasOutput: true,
+    hasInput: true,
+    isEffect: true
+  },
   Destination: {
     initParams: {},
     inputs: [],
@@ -55,6 +70,12 @@ const NODE_TYPES = {
     isSpecial: true
   }
 };
+
+// Effect nodes are instantiated once per synth (shared across voices), so
+// their output may only feed another effect node or the Destination.
+function isEffectType(type) {
+  return !!(NODE_TYPES[type] && NODE_TYPES[type].isEffect);
+}
 
 class ModularEditor {
   constructor(containerId, App) {
@@ -393,6 +414,17 @@ class ModularEditor {
           finalKey = "out";
       }
 
+      // Effect nodes are shared across voices: their output may only feed
+      // another effect node or the Destination (see NODE_TYPES comment).
+      const sourceNode = this.nodes.find(n => n.id === sourceId);
+      if (sourceNode && isEffectType(sourceNode.type) &&
+          !(targetNode && (isEffectType(targetNode.type) || targetNode.type === "Destination"))) {
+        alert(`${sourceNode.type} is shared across voices: its output can only connect to another effect node or Destination.`);
+        this.dragLine.style("display", "none");
+        this.draggingConnection = null;
+        return;
+      }
+
       if (!exists) {
         // Remove any existing connection if we are replacing it?
         // Modular synthesizers usually allow multiple cables to one input (mixing)
@@ -509,7 +541,7 @@ class ModularEditor {
     nodes.exit().remove();
 
     const nodeEnter = nodes.enter().append("g")
-      .attr("class", "node")
+      .attr("class", d => "node" + (isEffectType(d.type) ? " effect-node" : ""))
       .call(d3.drag()
         .on("drag", function(event, d) {
           d.x += event.dx;
