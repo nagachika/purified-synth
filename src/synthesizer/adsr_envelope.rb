@@ -13,6 +13,17 @@ class ADSREnvelope
     @target_param = param
   end
 
+  # Force the gated param to 0 immediately (idle state for pooled voices,
+  # whose sources keep running while the voice is silent).
+  def quiesce
+    @target_param&.value = 0.0
+  end
+
+  # Pooled voices may be retriggered (or stolen) while their previous release
+  # tail is still sounding; fading that residual to the floor over a few ms
+  # instead of jumping keeps the transition click-free at any residual level.
+  RETRIGGER_FADE = 0.005
+
   def trigger(time, velocity = 1.0)
     return unless @target_param
 
@@ -21,15 +32,15 @@ class ADSREnvelope
     min_val = 0.001
     peak_val = [velocity.to_f, min_val].max
 
-    @target_param.cancel_scheduled_values(t)
-    @target_param.set_value_at_time(min_val, t)
+    @target_param.cancel_and_hold_at_time(t)
+    @target_param.linear_ramp_to_value_at_time(min_val, t + RETRIGGER_FADE)
 
     # Attack
-    @target_param.linear_ramp_to_value_at_time(peak_val, t + @attack)
+    @target_param.linear_ramp_to_value_at_time(peak_val, t + RETRIGGER_FADE + @attack)
 
     # Decay
     sus_val = (@sustain * peak_val <= min_val) ? min_val : (@sustain * peak_val)
-    @target_param.exponential_ramp_to_value_at_time(sus_val, t + @attack + @decay)
+    @target_param.exponential_ramp_to_value_at_time(sus_val, t + RETRIGGER_FADE + @attack + @decay)
   end
 
   def release_at(time)

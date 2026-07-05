@@ -36,6 +36,86 @@ window.App = {
   }
 };
 
+// Scheduler performance metrics (verification harness for voice pooling).
+// Tick durations are pushed from the sequencer's setInterval body; heap is
+// sampled at 1Hz; longtasks (>50ms main-thread tasks) come from a
+// PerformanceObserver. Ruby-side counters are merged in by summary().
+window.__seqMetrics = {
+  ticks: [],
+  heap: [],
+  longtasks: [],
+
+  reset() {
+    this.ticks.length = 0;
+    this.heap.length = 0;
+    this.longtasks.length = 0;
+    if (window.App && window.App.vm) {
+      window.App.eval("$sequencer.reset_metrics if defined?($sequencer)", "MetricsReset");
+    }
+  },
+
+  percentile(arr, p) {
+    if (arr.length === 0) return 0;
+    const sorted = [...arr].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))];
+  },
+
+  summary() {
+    // Heap slope (bytes/sec) via least squares; GC count = drop count > 1MB
+    let gcCount = 0;
+    for (let i = 1; i < this.heap.length; i++) {
+      if (this.heap[i].used < this.heap[i - 1].used - 1e6) gcCount++;
+    }
+    let heapSlope = 0;
+    if (this.heap.length >= 2) {
+      const n = this.heap.length;
+      const t0 = this.heap[0].t;
+      let sx = 0, sy = 0, sxy = 0, sxx = 0;
+      for (const s of this.heap) {
+        const x = (s.t - t0) / 1000;
+        sx += x; sy += s.used; sxy += x * s.used; sxx += x * x;
+      }
+      heapSlope = (n * sxy - sx * sy) / (n * sxx - sx * sx || 1);
+    }
+    let rubyMetrics = null;
+    if (window.App && window.App.vm) {
+      const r = window.App.eval("$sequencer.metrics_json if defined?($sequencer)", "MetricsDump");
+      if (r) { try { rubyMetrics = JSON.parse(r.toString()); } catch (e) { /* ignore */ } }
+    }
+    return {
+      tickCount: this.ticks.length,
+      tickP50: this.percentile(this.ticks, 0.5),
+      tickP95: this.percentile(this.ticks, 0.95),
+      tickMax: this.ticks.length ? Math.max(...this.ticks) : 0,
+      tickTotalMs: this.ticks.reduce((a, b) => a + b, 0),
+      longtaskCount: this.longtasks.length,
+      longtaskTotalMs: this.longtasks.reduce((a, b) => a + b.duration, 0),
+      gcCount,
+      heapSlopeBytesPerSec: heapSlope,
+      heapSamples: this.heap.length,
+      ruby: rubyMetrics
+    };
+  }
+};
+
+if (typeof PerformanceObserver !== "undefined") {
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        window.__seqMetrics.longtasks.push({ start: e.startTime, duration: e.duration });
+      }
+    }).observe({ entryTypes: ["longtask"] });
+  } catch (e) {
+    console.warn("longtask observer unavailable:", e);
+  }
+}
+
+setInterval(() => {
+  if (performance.memory) {
+    window.__seqMetrics.heap.push({ t: performance.now(), used: performance.memory.usedJSHeapSize });
+  }
+}, 1000);
+
 const main = async () => {
   // Pre-load Ruby VM
   const response = await fetch("https://cdn.jsdelivr.net/npm/@ruby/3.3-wasm-wasi@2.8.1/dist/ruby+stdlib.wasm");
@@ -71,6 +151,7 @@ const main = async () => {
       "src/synthesizer/nodes.rb",
       "src/synthesizer/adsr_envelope.rb",
       "src/synthesizer/voice.rb",
+      "src/synthesizer/voice_pool.rb",
       "src/synthesizer.rb",
       "src/synthesizer/drum_machine.rb",
       "src/effects_chain.rb",

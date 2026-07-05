@@ -155,6 +155,36 @@ class Sequencer
     @next_note_time = 0.0
     @schedule_ahead_time = 0.1
     @lookahead_ms = 25.0
+
+    reset_metrics
+  end
+
+  # --- Scheduling metrics (voice pooling verification harness) ---
+  # A step scheduled with a negative margin (play_time already in the past)
+  # is clamped to "now" by Web Audio and is the closest proxy we have for an
+  # audible glitch; shrinking positive margins show the lookahead window
+  # being eaten by main-thread jank before outright failures occur.
+
+  def reset_metrics
+    @m_margins = []
+    @m_late_count = 0
+    @m_max_late = 0.0
+    Synthesizer.reset_note_metrics
+  end
+
+  def metrics_json
+    sorted = @m_margins.sort
+    p5 = sorted.empty? ? 0.0 : sorted[(sorted.length * 0.05).floor]
+    {
+      late_count: @m_late_count,
+      max_late_sec: @m_max_late,
+      margin_min_sec: sorted.first || 0.0,
+      margin_p5_sec: p5,
+      steps_scheduled: @m_margins.length,
+      notes_scheduled: Synthesizer.scheduled_notes,
+      pool_overflows: Synthesizer.pool_overflows,
+      pool_steals: Synthesizer.pool_steals
+    }.to_json
   end
 
   def total_bars
@@ -594,7 +624,10 @@ class Sequencer
     code = <<~JAVASCRIPT
       window.App["#{interval_name}"] = setInterval(() => {
         if (window.App && window.App.vm) {
+          const __t0 = performance.now();
           window.App.eval("#{@name}.scheduler", "Scheduler");
+          const __m = window.__seqMetrics;
+          if (__m) __m.ticks.push(performance.now() - __t0);
         }
       }, #{@lookahead_ms});
     JAVASCRIPT
@@ -621,6 +654,13 @@ class Sequencer
   end
 
   def schedule_step(step_index, time)
+    margin = time - @ctx[:currentTime].to_f
+    @m_margins << margin
+    if margin < 0.0
+      @m_late_count += 1
+      @m_max_late = -margin if -margin > @m_max_late
+    end
+
     seconds_per_beat = 60.0 / @bpm
     step_duration_sec = seconds_per_beat / 8.0 # 1/32 note resolution base
 

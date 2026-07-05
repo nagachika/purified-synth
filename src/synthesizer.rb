@@ -2,6 +2,7 @@ require "js"
 require "json"
 require_relative "synthesizer/nodes"
 require_relative "synthesizer/voice"
+require_relative "synthesizer/voice_pool"
 
 class Synthesizer
   # Effect node types instantiated once per Synthesizer and shared by all
@@ -13,6 +14,41 @@ class Synthesizer
   # Parameters
   attr_reader :custom_patch, :shared_effect_nodes
   attr_reader :master_gain
+
+  # --- Note metrics (voice pooling verification harness) ---
+  # Class-level so drum-machine synths and every track sum into one counter.
+  class << self
+    def scheduled_notes = @scheduled_notes ||= 0
+    def pool_overflows = @pool_overflows ||= 0
+    def pool_steals = @pool_steals ||= 0
+
+    def count_scheduled_note
+      @scheduled_notes = scheduled_notes + 1
+    end
+
+    def count_pool_overflow
+      @pool_overflows = pool_overflows + 1
+    end
+
+    def count_pool_steal
+      @pool_steals = pool_steals + 1
+    end
+
+    def reset_note_metrics
+      @scheduled_notes = 0
+      @pool_overflows = 0
+      @pool_steals = 0
+    end
+
+    # Experimental: reuse persistent voices in schedule_note instead of
+    # building a fresh Voice per note. Runtime-togglable for A/B comparison
+    # (App.eval("Synthesizer.voice_pooling = true")).
+    attr_writer :voice_pooling
+
+    def voice_pooling
+      @voice_pooling ||= false
+    end
+  end
 
   def initialize(ctx)
     @ctx = ctx
@@ -29,6 +65,11 @@ class Synthesizer
   # flows through here so the shared effect nodes stay in sync with the patch.
   def custom_patch=(patch)
     @custom_patch = patch
+    # Pooled voices hold nodes and connections built from the old patch
+    # (including wiring into shared effects) — tear them down; the pool is
+    # rebuilt lazily on the next scheduled note.
+    @voice_pool&.dispose_all
+    @voice_pool = nil
     rebuild_shared_effects
   end
 
@@ -74,6 +115,8 @@ class Synthesizer
   def close
     @final_node&.disconnect
     disconnect_shared_effects
+    @voice_pool&.dispose_all
+    @voice_pool = nil
     @active_voices.values.each(&:stop_immediately)
     @active_voices.clear
   end
@@ -261,6 +304,14 @@ class Synthesizer
   end
 
   def schedule_note(freq, start_time, duration, velocity: 0.8)
+    self.class.count_scheduled_note
+
+    if Synthesizer.voice_pooling
+      @voice_pool ||= VoicePool.new(@ctx, self)
+      return if @voice_pool.schedule_note(freq, start_time, duration, velocity)
+      Synthesizer.count_pool_overflow
+    end
+
     voice = Voice.new(@ctx, freq, @custom_patch, self)
     voice.start(start_time, velocity: velocity)
     voice.stop(start_time + duration)
